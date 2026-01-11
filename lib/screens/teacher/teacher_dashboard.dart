@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:file_picker/file_picker.dart';
 import '../../api_service.dart';
+import '../../widgets/app_drawer.dart';
 
 class TeacherDashboard extends StatefulWidget {
   const TeacherDashboard({super.key});
@@ -376,13 +377,15 @@ class _TeacherDashboardState extends State<TeacherDashboard>
             Tab(text: 'Mis Alumnos'),
           ],
         ),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.logout),
-            onPressed: () => Navigator.pushReplacementNamed(context, '/login'),
-          ),
-        ],
       ),
+      drawer: _user != null
+          ? AppDrawer(
+              user: _user!,
+              onProfileUpdated: () {
+                setState(() {});
+              },
+            )
+          : null,
       body: TabBarView(
         controller: _tabController,
         children: [

@@ -64,6 +64,41 @@ if ($action === 'register') {
       http_response_code(401);
       echo json_encode(['success' => false, 'message' => 'Credenciales inválidas']);
    }
+} elseif ($action === 'update_profile') {
+   $id = $data['id'] ?? null;
+   $nombre = $data['nombre'] ?? '';
+   $email = $data['email'] ?? '';
+   $password = $data['password'] ?? null;
+
+   if (!$id || empty($nombre) || empty($email)) {
+      http_response_code(400);
+      echo json_encode(['success' => false, 'message' => 'Faltan datos']);
+      exit;
+   }
+
+   // Verificar email duplicado (excluyendo al propio usuario)
+   $stmt = $pdo->prepare("SELECT id FROM usuarios WHERE email = ? AND id != ?");
+   $stmt->execute([$email, $id]);
+   if ($stmt->fetch()) {
+      http_response_code(409);
+      echo json_encode(['success' => false, 'message' => 'El email ya está en uso']);
+      exit;
+   }
+
+   try {
+      if ($password) {
+         $hashed_password = password_hash($password, PASSWORD_DEFAULT);
+         $stmt = $pdo->prepare("UPDATE usuarios SET nombre_completo = ?, email = ?, password = ? WHERE id = ?");
+         $stmt->execute([$nombre, $email, $hashed_password, $id]);
+      } else {
+         $stmt = $pdo->prepare("UPDATE usuarios SET nombre_completo = ?, email = ? WHERE id = ?");
+         $stmt->execute([$nombre, $email, $id]);
+      }
+      echo json_encode(['success' => true, 'message' => 'Perfil actualizado']);
+   } catch (Exception $e) {
+      http_response_code(500);
+      echo json_encode(['success' => false, 'message' => 'Error al actualizar perfil']);
+   }
 } else {
    http_response_code(400);
    echo json_encode(['success' => false, 'message' => 'Acción no válida']);

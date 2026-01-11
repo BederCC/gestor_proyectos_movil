@@ -24,7 +24,13 @@ class _LoginScreenState extends State<LoginScreen> {
       if (response['success']) {
         final user = response['user'];
         if (mounted) {
-          if (user['rol'] == 'docente') {
+          if (user['rol'] == 'admin') {
+            Navigator.pushReplacementNamed(
+              context,
+              '/admin_dashboard',
+              arguments: user,
+            );
+          } else if (user['rol'] == 'docente') {
             Navigator.pushReplacementNamed(
               context,
               '/teacher_dashboard',
