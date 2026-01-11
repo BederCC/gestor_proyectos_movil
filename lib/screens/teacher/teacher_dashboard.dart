@@ -87,7 +87,7 @@ class _TeacherDashboardState extends State<TeacherDashboard>
     }
   }
 
-  Future<void> _createProject(PlatformFile? file) async {
+  Future<void> _createProject(PlatformFile? file, bool isPublic) async {
     if (_projectTitleController.text.isEmpty) return;
 
     try {
@@ -99,6 +99,7 @@ class _TeacherDashboardState extends State<TeacherDashboard>
       request.fields['docente_id'] = _user!['id'].toString();
       request.fields['titulo'] = _projectTitleController.text;
       request.fields['descripcion'] = _projectDescController.text;
+      request.fields['visibilidad'] = isPublic ? 'publico' : 'privado';
 
       if (file != null && file.path != null) {
         request.files.add(
@@ -128,6 +129,38 @@ class _TeacherDashboardState extends State<TeacherDashboard>
           context,
         ).showSnackBar(SnackBar(content: Text('Error: $e')));
       }
+    }
+  }
+
+  Future<void> _toggleVisibility(
+    int projectId,
+    String currentVisibility,
+  ) async {
+    final newVisibility = currentVisibility == 'publico'
+        ? 'privado'
+        : 'publico';
+    try {
+      final response = await http.post(
+        Uri.parse(
+          '${ApiService.baseUrl}/teachers.php?action=toggle_project_visibility',
+        ),
+        body: jsonEncode({
+          'proyecto_id': projectId,
+          'visibilidad': newVisibility,
+        }),
+      );
+      final data = jsonDecode(response.body);
+      if (mounted) {
+        if (data['success']) {
+          _loadProjects();
+        } else {
+          ScaffoldMessenger.of(
+            context,
+          ).showSnackBar(SnackBar(content: Text(data['message'])));
+        }
+      }
+    } catch (e) {
+      // Error
     }
   }
 
@@ -249,6 +282,7 @@ class _TeacherDashboardState extends State<TeacherDashboard>
 
   void _showCreateProjectDialog() {
     PlatformFile? selectedFile;
+    bool isPublic = true;
 
     showDialog(
       context: context,
@@ -266,6 +300,21 @@ class _TeacherDashboardState extends State<TeacherDashboard>
                 TextField(
                   controller: _projectDescController,
                   decoration: const InputDecoration(labelText: 'Descripción'),
+                ),
+                const SizedBox(height: 16),
+                SwitchListTile(
+                  title: const Text('Público'),
+                  subtitle: Text(
+                    isPublic
+                        ? 'Visible para todos'
+                        : 'Privado (Solo tú lo ves)',
+                  ),
+                  value: isPublic,
+                  onChanged: (val) {
+                    setStateDialog(() {
+                      isPublic = val;
+                    });
+                  },
                 ),
                 const SizedBox(height: 16),
                 Row(
@@ -304,7 +353,7 @@ class _TeacherDashboardState extends State<TeacherDashboard>
               ),
               ElevatedButton(
                 onPressed: () {
-                  _createProject(selectedFile);
+                  _createProject(selectedFile, isPublic);
                 },
                 child: const Text('Crear'),
               ),
@@ -394,6 +443,23 @@ class _TeacherDashboardState extends State<TeacherDashboard>
                                       ),
                                     ),
                                 ],
+                              ),
+                              trailing: IconButton(
+                                icon: Icon(
+                                  project['visibilidad'] == 'publico'
+                                      ? Icons.public
+                                      : Icons.lock,
+                                  color: project['visibilidad'] == 'publico'
+                                      ? Colors.green
+                                      : Colors.grey,
+                                ),
+                                onPressed: () => _toggleVisibility(
+                                  project['id'],
+                                  project['visibilidad'] ?? 'publico',
+                                ),
+                                tooltip: project['visibilidad'] == 'publico'
+                                    ? 'Público (Toca para ocultar)'
+                                    : 'Privado (Toca para publicar)',
                               ),
                             ),
                           );
@@ -531,6 +597,14 @@ class _TeacherDashboardState extends State<TeacherDashboard>
                                         ),
                                     ],
                                   ),
+                                  trailing: task['archivo_url'] != null
+                                      ? IconButton(
+                                          icon: const Icon(Icons.rate_review),
+                                          tooltip: 'Calificar / Comentar',
+                                          onPressed: () =>
+                                              _showGradeDialog(task),
+                                        )
+                                      : null,
                                 );
                               }),
                           ],
@@ -541,6 +615,91 @@ class _TeacherDashboardState extends State<TeacherDashboard>
                 ),
         ],
       ),
+    );
+  }
+
+  Future<void> _gradeDeliverable(
+    int entregableId,
+    String? nota,
+    String feedback,
+  ) async {
+    try {
+      final response = await http.post(
+        Uri.parse(
+          '${ApiService.baseUrl}/teachers.php?action=grade_deliverable',
+        ),
+        body: jsonEncode({
+          'entregable_id': entregableId,
+          'nota': nota,
+          'feedback': feedback,
+        }),
+      );
+      final data = jsonDecode(response.body);
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(data['message'])));
+        if (data['success']) {
+          _loadStudents(); // Recargar para ver cambios
+        }
+      }
+    } catch (e) {
+      // Error
+    }
+  }
+
+  void _showGradeDialog(Map<String, dynamic> task) {
+    final feedbackController = TextEditingController(
+      text: task['feedback_docente'] ?? '',
+    );
+    final notaController = TextEditingController(
+      text: task['nota']?.toString() ?? '',
+    );
+
+    showDialog(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          title: const Text('Calificar Entregable'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TextField(
+                controller: notaController,
+                decoration: const InputDecoration(
+                  labelText: 'Nota (0-20)',
+                  hintText: 'Ej. 18',
+                ),
+                keyboardType: TextInputType.number,
+              ),
+              TextField(
+                controller: feedbackController,
+                decoration: const InputDecoration(
+                  labelText: 'Comentarios / Feedback',
+                ),
+                maxLines: 3,
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('Cancelar'),
+            ),
+            ElevatedButton(
+              onPressed: () {
+                Navigator.pop(context);
+                _gradeDeliverable(
+                  task['entregable_id'],
+                  notaController.text.isEmpty ? null : notaController.text,
+                  feedbackController.text,
+                );
+              },
+              child: const Text('Guardar'),
+            ),
+          ],
+        );
+      },
     );
   }
 }

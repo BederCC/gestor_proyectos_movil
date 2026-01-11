@@ -39,6 +39,7 @@ if ($action === 'list_teachers') {
    $docente_id = $_POST['docente_id'] ?? null;
    $titulo = $_POST['titulo'] ?? '';
    $descripcion = $_POST['descripcion'] ?? '';
+   $visibilidad = $_POST['visibilidad'] ?? 'publico';
    $pdf_url = null;
 
    if (!$docente_id || empty($titulo)) {
@@ -70,12 +71,30 @@ if ($action === 'list_teachers') {
    }
 
    try {
-      $stmt = $pdo->prepare("INSERT INTO proyectos (docente_id, titulo, descripcion, archivo_pdf_url) VALUES (?, ?, ?, ?)");
-      $stmt->execute([$docente_id, $titulo, $descripcion, $pdf_url]);
+      $stmt = $pdo->prepare("INSERT INTO proyectos (docente_id, titulo, descripcion, archivo_pdf_url, visibilidad) VALUES (?, ?, ?, ?, ?)");
+      $stmt->execute([$docente_id, $titulo, $descripcion, $pdf_url, $visibilidad]);
       echo json_encode(['success' => true, 'message' => 'Proyecto creado']);
    } catch (Exception $e) {
       http_response_code(500);
       echo json_encode(['success' => false, 'message' => 'Error al crear proyecto: ' . $e->getMessage()]);
+   }
+} elseif ($action === 'toggle_project_visibility') {
+   $proyecto_id = $data['proyecto_id'] ?? null;
+   $visibilidad = $data['visibilidad'] ?? null;
+
+   if (!$proyecto_id || !$visibilidad) {
+      http_response_code(400);
+      echo json_encode(['success' => false, 'message' => 'Faltan datos']);
+      exit;
+   }
+
+   try {
+      $stmt = $pdo->prepare("UPDATE proyectos SET visibilidad = ? WHERE id = ?");
+      $stmt->execute([$visibilidad, $proyecto_id]);
+      echo json_encode(['success' => true, 'message' => 'Visibilidad actualizada']);
+   } catch (Exception $e) {
+      http_response_code(500);
+      echo json_encode(['success' => false, 'message' => 'Error al actualizar']);
    }
 } elseif ($action === 'my_projects') {
    // Listar proyectos del docente
@@ -120,7 +139,9 @@ if ($action === 'list_teachers') {
       // Obtener tareas para cada alumno
       foreach ($students as &$student) {
          $stmtTasks = $pdo->prepare("
-            SELECT t.id, t.titulo, t.fecha_limite, e.archivo_url, e.comentario_alumno, e.fecha_entrega
+            SELECT t.id, t.titulo, t.fecha_limite, 
+                   e.id as entregable_id, e.archivo_url, e.comentario_alumno, e.fecha_entrega,
+                   e.nota, e.feedback_docente
             FROM tareas t
             LEFT JOIN entregables e ON t.id = e.tarea_id
             WHERE t.asesoria_id = ?
@@ -155,6 +176,26 @@ if ($action === 'list_teachers') {
    } catch (Exception $e) {
       http_response_code(500);
       echo json_encode(['success' => false, 'message' => 'Error al asignar tarea: ' . $e->getMessage()]);
+   }
+} elseif ($action === 'grade_deliverable') {
+   // Calificar/Comentar entregable
+   $entregable_id = $data['entregable_id'] ?? null;
+   $nota = $data['nota'] ?? null;
+   $feedback = $data['feedback'] ?? '';
+
+   if (!$entregable_id) {
+      http_response_code(400);
+      echo json_encode(['success' => false, 'message' => 'ID entregable requerido']);
+      exit;
+   }
+
+   try {
+      $stmt = $pdo->prepare("UPDATE entregables SET nota = ?, feedback_docente = ? WHERE id = ?");
+      $stmt->execute([$nota, $feedback, $entregable_id]);
+      echo json_encode(['success' => true, 'message' => 'Calificación guardada']);
+   } catch (Exception $e) {
+      http_response_code(500);
+      echo json_encode(['success' => false, 'message' => 'Error al calificar: ' . $e->getMessage()]);
    }
 } else {
    http_response_code(400);

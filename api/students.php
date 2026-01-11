@@ -96,7 +96,13 @@ if ($action === 'select_advisor') {
    }
 
    try {
-      $stmt = $pdo->prepare("SELECT * FROM tareas WHERE asesoria_id = ? ORDER BY created_at DESC");
+      $stmt = $pdo->prepare("
+         SELECT t.*, e.archivo_url, e.nota, e.feedback_docente, e.fecha_entrega
+         FROM tareas t
+         LEFT JOIN entregables e ON t.id = e.tarea_id
+         WHERE t.asesoria_id = ?
+         ORDER BY t.fecha_limite ASC
+      ");
       $stmt->execute([$asesoria_id]);
       $tasks = $stmt->fetchAll();
       echo json_encode(['success' => true, 'tasks' => $tasks]);
@@ -148,6 +154,23 @@ if ($action === 'select_advisor') {
    } catch (Exception $e) {
       http_response_code(500);
       echo json_encode(['success' => false, 'message' => 'Error al enviar entregable: ' . $e->getMessage()]);
+   }
+} elseif ($action === 'list_public_projects') {
+   // Listar proyectos públicos para que los alumnos los vean
+   try {
+      $stmt = $pdo->prepare("
+         SELECT p.*, u.nombre_completo as docente_nombre 
+         FROM proyectos p
+         JOIN usuarios u ON p.docente_id = u.id
+         WHERE p.visibilidad = 'publico'
+         ORDER BY p.created_at DESC
+      ");
+      $stmt->execute();
+      $projects = $stmt->fetchAll();
+      echo json_encode(['success' => true, 'projects' => $projects]);
+   } catch (Exception $e) {
+      http_response_code(500);
+      echo json_encode(['success' => false, 'message' => 'Error al listar proyectos']);
    }
 } else {
    http_response_code(400);

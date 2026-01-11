@@ -11,12 +11,22 @@ class StudentDashboard extends StatefulWidget {
   State<StudentDashboard> createState() => _StudentDashboardState();
 }
 
-class _StudentDashboardState extends State<StudentDashboard> {
+class _StudentDashboardState extends State<StudentDashboard>
+    with SingleTickerProviderStateMixin {
+  late TabController _tabController;
   Map<String, dynamic>? _user;
   Map<String, dynamic>? _advisor;
   List<dynamic> _teachers = [];
   List<dynamic> _tasks = [];
+  List<dynamic> _publicProjects = [];
   bool _isLoading = true;
+  bool _isLoadingProjects = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _tabController = TabController(length: 2, vsync: this);
+  }
 
   @override
   void didChangeDependencies() {
@@ -24,6 +34,28 @@ class _StudentDashboardState extends State<StudentDashboard> {
     _user = ModalRoute.of(context)!.settings.arguments as Map<String, dynamic>?;
     if (_user != null) {
       _checkAdvisor();
+      _loadPublicProjects();
+    }
+  }
+
+  Future<void> _loadPublicProjects() async {
+    setState(() => _isLoadingProjects = true);
+    try {
+      final response = await http.get(
+        Uri.parse(
+          '${ApiService.baseUrl}/students.php?action=list_public_projects',
+        ),
+      );
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        setState(() {
+          _publicProjects = data['projects'];
+        });
+      }
+    } catch (e) {
+      // Error
+    } finally {
+      setState(() => _isLoadingProjects = false);
     }
   }
 
@@ -223,12 +255,16 @@ class _StudentDashboardState extends State<StudentDashboard> {
 
   @override
   Widget build(BuildContext context) {
-    if (_isLoading)
-      return const Scaffold(body: Center(child: CircularProgressIndicator()));
-
     return Scaffold(
       appBar: AppBar(
         title: Text('Panel Alumno: ${_user?['nombre_completo']}'),
+        bottom: TabBar(
+          controller: _tabController,
+          tabs: const [
+            Tab(text: 'Proyectos Públicos'),
+            Tab(text: 'Mi Asesoría'),
+          ],
+        ),
         actions: [
           IconButton(
             icon: const Icon(Icons.logout),
@@ -236,7 +272,78 @@ class _StudentDashboardState extends State<StudentDashboard> {
           ),
         ],
       ),
-      body: _advisor == null ? _buildTeacherList() : _buildDashboard(),
+      body: TabBarView(
+        controller: _tabController,
+        children: [
+          // Tab 1: Proyectos Públicos
+          _isLoadingProjects
+              ? const Center(child: CircularProgressIndicator())
+              : _buildPublicProjectsList(),
+          // Tab 2: Mi Asesoría
+          _isLoading
+              ? const Center(child: CircularProgressIndicator())
+              : (_advisor == null ? _buildTeacherList() : _buildDashboard()),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildPublicProjectsList() {
+    if (_publicProjects.isEmpty) {
+      return const Center(
+        child: Text('No hay proyectos públicos disponibles.'),
+      );
+    }
+    return ListView.builder(
+      itemCount: _publicProjects.length,
+      itemBuilder: (context, index) {
+        final project = _publicProjects[index];
+        return Card(
+          margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+          child: ListTile(
+            title: Text(
+              project['titulo'],
+              style: const TextStyle(fontWeight: FontWeight.bold),
+            ),
+            subtitle: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('Docente: ${project['docente_nombre']}'),
+                const SizedBox(height: 4),
+                Text(project['descripcion'] ?? ''),
+                if (project['archivo_pdf_url'] != null)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 8.0),
+                    child: Row(
+                      children: [
+                        const Icon(
+                          Icons.picture_as_pdf,
+                          size: 16,
+                          color: Colors.red,
+                        ),
+                        const SizedBox(width: 4),
+                        Expanded(
+                          child: Text(
+                            project['archivo_pdf_url']
+                                .toString()
+                                .split('/')
+                                .last,
+                            style: const TextStyle(
+                              color: Colors.blue,
+                              decoration: TextDecoration.underline,
+                            ),
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+              ],
+            ),
+            isThreeLine: true,
+          ),
+        );
+      },
     );
   }
 
@@ -299,26 +406,112 @@ class _StudentDashboardState extends State<StudentDashboard> {
             itemCount: _tasks.length,
             itemBuilder: (context, index) {
               final task = _tasks[index];
-              return ListTile(
-                title: Text(task['titulo']),
-                subtitle: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(task['descripcion'] ?? ''),
-                    const SizedBox(height: 4),
-                    Text(
-                      'Vence: ${task['fecha_limite'] ?? 'Sin fecha'}',
-                      style: TextStyle(
-                        color: Colors.red[700],
-                        fontWeight: FontWeight.bold,
+              return Card(
+                margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                child: Padding(
+                  padding: const EdgeInsets.all(8.0),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      ListTile(
+                        contentPadding: EdgeInsets.zero,
+                        title: Text(
+                          task['titulo'],
+                          style: const TextStyle(fontWeight: FontWeight.bold),
+                        ),
+                        subtitle: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(task['descripcion'] ?? ''),
+                            const SizedBox(height: 4),
+                            Text(
+                              'Vence: ${task['fecha_limite'] ?? 'Sin fecha'}',
+                              style: TextStyle(
+                                color: Colors.red[700],
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ],
+                        ),
+                        trailing: IconButton(
+                          icon: Icon(
+                            task['archivo_url'] != null
+                                ? Icons.edit
+                                : Icons.upload_file,
+                            color: task['archivo_url'] != null
+                                ? Colors.orange
+                                : Colors.blue,
+                          ),
+                          onPressed: () => _uploadDeliverable(task['id']),
+                          tooltip: task['archivo_url'] != null
+                              ? 'Editar Entregable'
+                              : 'Subir Entregable',
+                        ),
                       ),
-                    ),
-                  ],
-                ),
-                trailing: IconButton(
-                  icon: const Icon(Icons.upload_file),
-                  onPressed: () => _uploadDeliverable(task['id']),
-                  tooltip: 'Subir Entregable',
+                      if (task['archivo_url'] != null) ...[
+                        const Divider(),
+                        const Text(
+                          'Tu Entrega:',
+                          style: TextStyle(fontWeight: FontWeight.w600),
+                        ),
+                        Row(
+                          children: [
+                            const Icon(
+                              Icons.picture_as_pdf,
+                              size: 16,
+                              color: Colors.red,
+                            ),
+                            const SizedBox(width: 4),
+                            Expanded(
+                              child: Text(
+                                task['archivo_url'].toString().split('/').last,
+                                style: const TextStyle(
+                                  color: Colors.blue,
+                                  decoration: TextDecoration.underline,
+                                ),
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ),
+                          ],
+                        ),
+                        if (task['nota'] != null ||
+                            task['feedback_docente'] != null) ...[
+                          const SizedBox(height: 8),
+                          Container(
+                            width: double.infinity,
+                            padding: const EdgeInsets.all(8),
+                            decoration: BoxDecoration(
+                              color: Colors.green[50],
+                              borderRadius: BorderRadius.circular(8),
+                              border: Border.all(color: Colors.green[200]!),
+                            ),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  'Calificación: ${task['nota'] ?? '-'} / 20',
+                                  style: TextStyle(
+                                    fontWeight: FontWeight.bold,
+                                    color: Colors.green[800],
+                                  ),
+                                ),
+                                if (task['feedback_docente'] != null &&
+                                    task['feedback_docente']
+                                        .toString()
+                                        .isNotEmpty) ...[
+                                  const SizedBox(height: 4),
+                                  Text(
+                                    'Feedback: ${task['feedback_docente']}',
+                                    style: TextStyle(color: Colors.green[900]),
+                                  ),
+                                ],
+                              ],
+                            ),
+                          ),
+                        ],
+                      ],
+                    ],
+                  ),
                 ),
               );
             },
