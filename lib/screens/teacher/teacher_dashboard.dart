@@ -1,0 +1,546 @@
+import 'dart:convert';
+import 'package:flutter/material.dart';
+import 'package:http/http.dart' as http;
+import 'package:file_picker/file_picker.dart';
+import '../../api_service.dart';
+
+class TeacherDashboard extends StatefulWidget {
+  const TeacherDashboard({super.key});
+
+  @override
+  State<TeacherDashboard> createState() => _TeacherDashboardState();
+}
+
+class _TeacherDashboardState extends State<TeacherDashboard>
+    with SingleTickerProviderStateMixin {
+  late TabController _tabController;
+  Map<String, dynamic>? _user;
+  List<dynamic> _students = [];
+  List<dynamic> _projects = [];
+  bool _isLoadingStudents = false;
+  bool _isLoadingProjects = false;
+
+  final _projectTitleController = TextEditingController();
+  final _projectDescController = TextEditingController();
+
+  bool _isInit = true;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (_isInit) {
+      _user =
+          ModalRoute.of(context)!.settings.arguments as Map<String, dynamic>?;
+      if (_user != null) {
+        _loadStudents();
+        _loadProjects();
+      }
+      _isInit = false;
+    }
+  }
+
+  Future<void> _loadProjects() async {
+    setState(() => _isLoadingProjects = true);
+    try {
+      final response = await http.get(
+        Uri.parse(
+          '${ApiService.baseUrl}/teachers.php?action=my_projects&docente_id=${_user!['id']}',
+        ),
+      );
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        setState(() {
+          _projects = data['projects'];
+        });
+      }
+    } catch (e) {
+      // Handle error
+    } finally {
+      setState(() => _isLoadingProjects = false);
+    }
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    _tabController = TabController(length: 2, vsync: this);
+  }
+
+  Future<void> _loadStudents() async {
+    setState(() => _isLoadingStudents = true);
+    try {
+      final response = await http.get(
+        Uri.parse(
+          '${ApiService.baseUrl}/teachers.php?action=my_students&docente_id=${_user!['id']}',
+        ),
+      );
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        setState(() {
+          _students = data['students'];
+        });
+      }
+    } catch (e) {
+      // Handle error
+    } finally {
+      setState(() => _isLoadingStudents = false);
+    }
+  }
+
+  Future<void> _createProject(PlatformFile? file) async {
+    if (_projectTitleController.text.isEmpty) return;
+
+    try {
+      var request = http.MultipartRequest(
+        'POST',
+        Uri.parse('${ApiService.baseUrl}/teachers.php?action=create_project'),
+      );
+
+      request.fields['docente_id'] = _user!['id'].toString();
+      request.fields['titulo'] = _projectTitleController.text;
+      request.fields['descripcion'] = _projectDescController.text;
+
+      if (file != null && file.path != null) {
+        request.files.add(
+          await http.MultipartFile.fromPath('pdf_file', file.path!),
+        );
+      }
+
+      var streamedResponse = await request.send();
+      var response = await http.Response.fromStream(streamedResponse);
+
+      final data = jsonDecode(response.body);
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(data['message'])));
+        if (data['success']) {
+          _projectTitleController.clear();
+          _projectDescController.clear();
+          Navigator.pop(context);
+          _loadProjects(); // Recargar lista
+        }
+      }
+    } catch (e) {
+      // Error
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Error: $e')));
+      }
+    }
+  }
+
+  Future<void> _createTask(int asesoriaId) async {
+    final titleController = TextEditingController();
+    final descController = TextEditingController();
+    DateTime? selectedDate;
+
+    showDialog(
+      context: context,
+      builder: (context) => StatefulBuilder(
+        builder: (context, setStateDialog) {
+          return AlertDialog(
+            title: const Text('Asignar Tarea'),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                TextField(
+                  controller: titleController,
+                  decoration: const InputDecoration(labelText: 'Título'),
+                ),
+                TextField(
+                  controller: descController,
+                  decoration: const InputDecoration(labelText: 'Descripción'),
+                ),
+                const SizedBox(height: 16),
+                Row(
+                  children: [
+                    Text(
+                      selectedDate == null
+                          ? 'Sin fecha límite'
+                          : 'Límite: ${selectedDate!.toLocal().toString().split(' ')[0]}',
+                    ),
+                    const Spacer(),
+                    TextButton(
+                      onPressed: () async {
+                        final picked = await showDatePicker(
+                          context: context,
+                          initialDate: DateTime.now().add(
+                            const Duration(days: 1),
+                          ),
+                          firstDate: DateTime.now(),
+                          lastDate: DateTime.now().add(
+                            const Duration(days: 365),
+                          ),
+                        );
+                        if (picked != null) {
+                          setStateDialog(() {
+                            selectedDate = picked;
+                          });
+                        }
+                      },
+                      child: const Text('Seleccionar Fecha'),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: const Text('Cancelar'),
+              ),
+              ElevatedButton(
+                onPressed: () async {
+                  if (titleController.text.isEmpty || selectedDate == null) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                        content: Text('Título y fecha son obligatorios'),
+                      ),
+                    );
+                    return;
+                  }
+
+                  try {
+                    // Ajustar fecha al final del día (23:59:59)
+                    final deadline = DateTime(
+                      selectedDate!.year,
+                      selectedDate!.month,
+                      selectedDate!.day,
+                      23,
+                      59,
+                      59,
+                    );
+
+                    final response = await http.post(
+                      Uri.parse(
+                        '${ApiService.baseUrl}/teachers.php?action=create_task',
+                      ),
+                      body: jsonEncode({
+                        'asesoria_id': asesoriaId,
+                        'titulo': titleController.text,
+                        'descripcion': descController.text,
+                        'fecha_limite': deadline
+                            .toIso8601String()
+                            .replaceAll('T', ' ')
+                            .substring(0, 19),
+                      }),
+                    );
+                    if (context.mounted) {
+                      Navigator.pop(context);
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(content: Text('Tarea asignada')),
+                      );
+                      _loadStudents(); // Recargar para ver la nueva tarea
+                    }
+                  } catch (e) {
+                    // Error
+                  }
+                },
+                child: const Text('Asignar'),
+              ),
+            ],
+          );
+        },
+      ),
+    );
+  }
+
+  void _showCreateProjectDialog() {
+    PlatformFile? selectedFile;
+
+    showDialog(
+      context: context,
+      builder: (context) => StatefulBuilder(
+        builder: (context, setStateDialog) {
+          return AlertDialog(
+            title: const Text('Nuevo Proyecto'),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                TextField(
+                  controller: _projectTitleController,
+                  decoration: const InputDecoration(labelText: 'Título'),
+                ),
+                TextField(
+                  controller: _projectDescController,
+                  decoration: const InputDecoration(labelText: 'Descripción'),
+                ),
+                const SizedBox(height: 16),
+                Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        selectedFile?.name ?? 'Ningún archivo seleccionado',
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                    IconButton(
+                      icon: const Icon(Icons.attach_file),
+                      onPressed: () async {
+                        FilePickerResult? result = await FilePicker.platform
+                            .pickFiles(
+                              type: FileType.custom,
+                              allowedExtensions: ['pdf'],
+                            );
+
+                        if (result != null) {
+                          setStateDialog(() {
+                            selectedFile = result.files.single;
+                          });
+                        }
+                      },
+                      tooltip: 'Seleccionar PDF',
+                    ),
+                  ],
+                ),
+              ],
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: const Text('Cancelar'),
+              ),
+              ElevatedButton(
+                onPressed: () {
+                  _createProject(selectedFile);
+                },
+                child: const Text('Crear'),
+              ),
+            ],
+          );
+        },
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: Text('Panel Docente: ${_user?['nombre_completo'] ?? ''}'),
+        bottom: TabBar(
+          controller: _tabController,
+          tabs: const [
+            Tab(text: 'Mis Proyectos'),
+            Tab(text: 'Mis Alumnos'),
+          ],
+        ),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.logout),
+            onPressed: () => Navigator.pushReplacementNamed(context, '/login'),
+          ),
+        ],
+      ),
+      body: TabBarView(
+        controller: _tabController,
+        children: [
+          // Tab Proyectos
+          Column(
+            children: [
+              Padding(
+                padding: const EdgeInsets.all(16.0),
+                child: ElevatedButton(
+                  onPressed: _showCreateProjectDialog,
+                  child: const Text('Subir Nuevo Proyecto'),
+                ),
+              ),
+              Expanded(
+                child: _isLoadingProjects
+                    ? const Center(child: CircularProgressIndicator())
+                    : ListView.builder(
+                        itemCount: _projects.length,
+                        itemBuilder: (context, index) {
+                          final project = _projects[index];
+                          return Card(
+                            margin: const EdgeInsets.symmetric(
+                              horizontal: 16,
+                              vertical: 8,
+                            ),
+                            child: ListTile(
+                              title: Text(project['titulo']),
+                              subtitle: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(project['descripcion'] ?? ''),
+                                  if (project['archivo_pdf_url'] != null)
+                                    Padding(
+                                      padding: const EdgeInsets.only(top: 8.0),
+                                      child: Row(
+                                        children: [
+                                          const Icon(
+                                            Icons.picture_as_pdf,
+                                            size: 16,
+                                            color: Colors.red,
+                                          ),
+                                          const SizedBox(width: 4),
+                                          Expanded(
+                                            child: Text(
+                                              project['archivo_pdf_url']
+                                                  .toString()
+                                                  .split('/')
+                                                  .last,
+                                              style: const TextStyle(
+                                                color: Colors.blue,
+                                                decoration:
+                                                    TextDecoration.underline,
+                                              ),
+                                              overflow: TextOverflow.ellipsis,
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                ],
+                              ),
+                            ),
+                          );
+                        },
+                      ),
+              ),
+            ],
+          ),
+          // Tab Alumnos
+          _isLoadingStudents
+              ? const Center(child: CircularProgressIndicator())
+              : ListView.builder(
+                  itemCount: _students.length,
+                  itemBuilder: (context, index) {
+                    final student = _students[index];
+                    final tasks = student['tasks'] as List<dynamic>? ?? [];
+
+                    return Card(
+                      margin: const EdgeInsets.all(8),
+                      child: Padding(
+                        padding: const EdgeInsets.all(8.0),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            ListTile(
+                              contentPadding: EdgeInsets.zero,
+                              title: Text(
+                                student['alumno_nombre'],
+                                style: const TextStyle(
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                              subtitle: Text(student['alumno_email'] ?? ''),
+                              trailing: IconButton(
+                                icon: const Icon(Icons.add_task),
+                                onPressed: () =>
+                                    _createTask(student['asesoria_id']),
+                                tooltip: 'Asignar Tarea',
+                              ),
+                            ),
+                            const Divider(),
+                            const Text(
+                              'Entregables asignados:',
+                              style: TextStyle(
+                                fontWeight: FontWeight.w600,
+                                color: Colors.grey,
+                              ),
+                            ),
+                            if (tasks.isEmpty)
+                              const Padding(
+                                padding: EdgeInsets.symmetric(vertical: 8.0),
+                                child: Text(
+                                  'No hay tareas asignadas',
+                                  style: TextStyle(fontStyle: FontStyle.italic),
+                                ),
+                              )
+                            else
+                              ...tasks.map((task) {
+                                return ListTile(
+                                  dense: true,
+                                  contentPadding: const EdgeInsets.only(
+                                    left: 16,
+                                  ),
+                                  leading: const Icon(
+                                    Icons.assignment,
+                                    size: 20,
+                                  ),
+                                  title: Text(task['titulo']),
+                                  subtitle: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                        'Fecha límite: ${task['fecha_limite'] ?? 'Sin fecha'}',
+                                      ),
+                                      if (task['archivo_url'] != null)
+                                        Padding(
+                                          padding: const EdgeInsets.only(
+                                            top: 4.0,
+                                          ),
+                                          child: Row(
+                                            children: [
+                                              const Icon(
+                                                Icons.check_circle,
+                                                size: 16,
+                                                color: Colors.green,
+                                              ),
+                                              const SizedBox(width: 4),
+                                              const Text(
+                                                'Entregado:',
+                                                style: TextStyle(
+                                                  fontWeight: FontWeight.bold,
+                                                  color: Colors.green,
+                                                ),
+                                              ),
+                                              const SizedBox(width: 4),
+                                              Expanded(
+                                                child: Text(
+                                                  task['archivo_url']
+                                                      .toString()
+                                                      .split('/')
+                                                      .last,
+                                                  style: const TextStyle(
+                                                    color: Colors.blue,
+                                                    decoration: TextDecoration
+                                                        .underline,
+                                                  ),
+                                                  overflow:
+                                                      TextOverflow.ellipsis,
+                                                ),
+                                              ),
+                                            ],
+                                          ),
+                                        )
+                                      else
+                                        const Padding(
+                                          padding: EdgeInsets.only(top: 4.0),
+                                          child: Row(
+                                            children: [
+                                              Icon(
+                                                Icons.pending,
+                                                size: 16,
+                                                color: Colors.orange,
+                                              ),
+                                              SizedBox(width: 4),
+                                              Text(
+                                                'Pendiente de entrega',
+                                                style: TextStyle(
+                                                  color: Colors.orange,
+                                                  fontStyle: FontStyle.italic,
+                                                ),
+                                              ),
+                                            ],
+                                          ),
+                                        ),
+                                    ],
+                                  ),
+                                );
+                              }),
+                          ],
+                        ),
+                      ),
+                    );
+                  },
+                ),
+        ],
+      ),
+    );
+  }
+}
