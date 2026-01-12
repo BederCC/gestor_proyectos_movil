@@ -3,7 +3,7 @@
 -- https://www.phpmyadmin.net/
 --
 -- Servidor: 127.0.0.1
--- Tiempo de generación: 12-01-2026 a las 01:23:37
+-- Tiempo de generación: 12-01-2026 a las 04:02:43
 -- Versión del servidor: 10.4.32-MariaDB
 -- Versión de PHP: 8.0.30
 
@@ -30,15 +30,6 @@ CREATE TABLE `asesorias` (
   `estado` enum('pendiente','activo','finalizado','cancelado','rechazado') DEFAULT 'pendiente'
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
---
--- Volcado de datos para la tabla `asesorias`
---
-
-INSERT INTO `asesorias` (`id`, `alumno_id`, `docente_id`, `proyecto_id`, `fecha_inicio`, `estado`) VALUES
-(1, 1, 2, 1, '2026-01-09 23:04:39', 'activo'),
-(2, 3, 4, NULL, '2026-01-10 01:42:25', 'activo'),
-(3, 7, 6, NULL, '2026-01-11 19:20:45', NULL);
-
 -- --------------------------------------------------------
 
 --
@@ -55,15 +46,6 @@ CREATE TABLE `entregables` (
   `nota` int(11) DEFAULT NULL,
   `feedback_docente` text DEFAULT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
-
---
--- Volcado de datos para la tabla `entregables`
---
-
-INSERT INTO `entregables` (`id`, `tarea_id`, `alumno_id`, `archivo_url`, `comentario_alumno`, `fecha_entrega`, `nota`, `feedback_docente`) VALUES
-(1, 1, 1, 'uploads/deliverables/6961f2e06d8c8_URL_03_SIS01.pdf', 'ahi te Mando El primer entregable godito', '2026-01-10 01:34:08', 13, 'no se entienede las variables'),
-(2, 2, 1, 'uploads/deliverables/6961f5cce8989_1408938691_introduccion-a-la-ingenieria-de-sistemas.pdf', 'toma pndj', '2026-01-10 01:46:36', NULL, NULL),
-(3, 3, 3, 'uploads/deliverables/6961f6cdb45b3_URL_03_SIS01.pdf', 'entrega', '2026-01-10 01:50:53', NULL, NULL);
 
 -- --------------------------------------------------------
 
@@ -82,17 +64,6 @@ CREATE TABLE `proyectos` (
   `visibilidad` enum('publico','privado') DEFAULT 'publico'
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
---
--- Volcado de datos para la tabla `proyectos`
---
-
-INSERT INTO `proyectos` (`id`, `docente_id`, `titulo`, `descripcion`, `archivo_pdf_url`, `estado`, `created_at`, `visibilidad`) VALUES
-(1, 2, 'la golondrinas migran', 'este es un proyecto muy buenisimo', 'http://example.com/dummy.pdf', 'asignado', '2026-01-10 04:03:30', 'publico'),
-(5, 2, 'ho', 'hola', 'uploads/6961e913086a1_1408938691_introduccion-a-la-ingenieria-de-sistemas.pdf', 'disponible', '2026-01-10 05:52:19', 'privado'),
-(6, 2, 'prueba 2', 'prueba 2', 'uploads/6961efdc35f9b_URL_03_SIS01.pdf', 'disponible', '2026-01-10 06:21:16', 'privado'),
-(7, 2, 'prueba 3', 'prueba 3', 'uploads/6961f40ae97f2_URL_03_SIS01.pdf', 'disponible', '2026-01-10 06:39:06', 'privado'),
-(8, 4, 'asdf', 'asdf', 'uploads/6961f55da55da_1408938691_introduccion-a-la-ingenieria-de-sistemas.pdf', 'disponible', '2026-01-10 06:44:45', 'publico');
-
 -- --------------------------------------------------------
 
 --
@@ -107,15 +78,6 @@ CREATE TABLE `tareas` (
   `fecha_limite` datetime DEFAULT NULL,
   `created_at` timestamp NOT NULL DEFAULT current_timestamp()
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
-
---
--- Volcado de datos para la tabla `tareas`
---
-
-INSERT INTO `tareas` (`id`, `asesoria_id`, `titulo`, `descripcion`, `fecha_limite`, `created_at`) VALUES
-(1, 1, 'primer entregable', 'hasta la matriz de consistencia', '2026-01-17 04:14:00', '2026-01-10 04:14:02'),
-(2, 1, 'segundo entregable', 'hasta el Marco teorico', '2026-01-23 23:59:59', '2026-01-10 04:28:53'),
-(3, 2, 'entregame mrd', 'el primero', '2026-01-14 23:59:59', '2026-01-10 06:43:22');
 
 -- --------------------------------------------------------
 
@@ -132,19 +94,6 @@ CREATE TABLE `usuarios` (
   `foto_perfil` varchar(255) DEFAULT NULL,
   `created_at` timestamp NOT NULL DEFAULT current_timestamp()
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
-
---
--- Volcado de datos para la tabla `usuarios`
---
-
-INSERT INTO `usuarios` (`id`, `nombre_completo`, `email`, `password`, `rol`, `foto_perfil`, `created_at`) VALUES
-(1, 'Joel Bolivar', 'joel@gmail.com', '$2y$10$tQuaosyjPgD5PcjDWcZfLuNI.ExMvGvDYu6HDmFrlufFN1aBib4tG', 'alumno', 'uploads/perfil/69636e8198138_IMG_20250612_060252~2.jpg', '2026-01-10 03:56:18'),
-(2, 'Godofredo Poccori Humeres', 'godo@gmail.com', '$2y$10$2IQiyKge84/Zsyj8gL7MjeWgVjV/KHgjzC3l/2DU0884TubFqsktu', 'docente', NULL, '2026-01-10 03:57:15'),
-(3, 'Juan Lopez', 'juan@gmail.com', '$2y$10$ktQHIWj.3495FdyMl2WkGeLngi6x4pjZedvvm4C.hil.rStRNr4y6', 'alumno', NULL, '2026-01-10 04:31:41'),
-(4, 'Maylin', 'maylin@gmail.com', '$2y$10$iJ/VRbrDXle/BOr8IoO57.apsWFzrr2XAqrV0tGQAF1Zc/gIUsJM2', 'docente', NULL, '2026-01-10 04:32:27'),
-(5, 'El Admi', 'admin@gmail.com', '$2y$10$hpUhXsmRyja1Sg3pzeFkMeJdw/xViNNaVkMUYUjvP/5A8ll1OhOlS', 'admin', NULL, '2026-01-11 08:42:37'),
-(6, 'moreano', 'moreano@gmail.com', '$2y$10$uAyd8dLS6hwQRgVMc3CxwOYaJk5lKGd6U1hN1ZNM7ThrGRDXtrhyO', 'docente', NULL, '2026-01-12 00:11:33'),
-(7, 'jorge ramos', 'jorge@gmail.com', '$2y$10$vfUS7pDgwJb3.DBq5StI2enR5ZXM1K06mUedbWhAelajNtMvCk7rq', 'alumno', NULL, '2026-01-12 00:12:23');
 
 --
 -- Índices para tablas volcadas
@@ -196,31 +145,31 @@ ALTER TABLE `usuarios`
 -- AUTO_INCREMENT de la tabla `asesorias`
 --
 ALTER TABLE `asesorias`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=4;
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT;
 
 --
 -- AUTO_INCREMENT de la tabla `entregables`
 --
 ALTER TABLE `entregables`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=4;
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT;
 
 --
 -- AUTO_INCREMENT de la tabla `proyectos`
 --
 ALTER TABLE `proyectos`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=9;
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT;
 
 --
 -- AUTO_INCREMENT de la tabla `tareas`
 --
 ALTER TABLE `tareas`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=4;
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT;
 
 --
 -- AUTO_INCREMENT de la tabla `usuarios`
 --
 ALTER TABLE `usuarios`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=8;
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT;
 
 --
 -- Restricciones para tablas volcadas
