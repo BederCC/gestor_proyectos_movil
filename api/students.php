@@ -172,6 +172,28 @@ if ($action === 'select_advisor') {
       http_response_code(500);
       echo json_encode(['success' => false, 'message' => 'Error al listar proyectos']);
    }
+} elseif ($action === 'cancel_request') {
+   $asesoria_id = $data['asesoria_id'] ?? null;
+
+   if (!$asesoria_id) {
+      http_response_code(400);
+      echo json_encode(['success' => false, 'message' => 'ID asesoría requerido']);
+      exit;
+   }
+
+   try {
+      $stmt = $pdo->prepare("DELETE FROM asesorias WHERE id = ? AND estado = 'pendiente'");
+      $stmt->execute([$asesoria_id]);
+
+      if ($stmt->rowCount() > 0) {
+         echo json_encode(['success' => true, 'message' => 'Solicitud cancelada']);
+      } else {
+         echo json_encode(['success' => false, 'message' => 'No se pudo cancelar la solicitud (tal vez ya fue aceptada)']);
+      }
+   } catch (Exception $e) {
+      http_response_code(500);
+      echo json_encode(['success' => false, 'message' => 'Error al cancelar solicitud']);
+   }
 } else {
    http_response_code(400);
    echo json_encode(['success' => false, 'message' => 'Acción no válida']);

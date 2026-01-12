@@ -121,18 +121,30 @@ class _AdminDashboardState extends State<AdminDashboard>
     return await showDialog(
           context: context,
           builder: (context) => AlertDialog(
-            title: Text(title),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(16),
+            ),
+            title: Text(
+              title,
+              style: const TextStyle(fontWeight: FontWeight.bold),
+            ),
             content: const Text('Esta acción no se puede deshacer.'),
             actions: [
               TextButton(
                 onPressed: () => Navigator.pop(context, false),
-                child: const Text('Cancelar'),
+                child: const Text(
+                  'Cancelar',
+                  style: TextStyle(color: Colors.grey),
+                ),
               ),
               ElevatedButton(
                 onPressed: () => Navigator.pop(context, true),
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.red,
+                  backgroundColor: const Color(0xFFB71C1C),
                   foregroundColor: Colors.white,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(8),
+                  ),
                 ),
                 child: const Text('Eliminar'),
               ),
@@ -152,18 +164,38 @@ class _AdminDashboardState extends State<AdminDashboard>
       builder: (context) => StatefulBuilder(
         builder: (context, setStateDialog) {
           return AlertDialog(
-            title: const Text('Editar Usuario'),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(16),
+            ),
+            title: const Text(
+              'Editar Usuario',
+              style: TextStyle(fontWeight: FontWeight.bold),
+            ),
             content: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
                 TextField(
                   controller: nameController,
-                  decoration: const InputDecoration(labelText: 'Nombre'),
+                  decoration: InputDecoration(
+                    labelText: 'Nombre',
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    prefixIcon: const Icon(Icons.person),
+                  ),
                 ),
+                const SizedBox(height: 16),
                 TextField(
                   controller: emailController,
-                  decoration: const InputDecoration(labelText: 'Email'),
+                  decoration: InputDecoration(
+                    labelText: 'Email',
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    prefixIcon: const Icon(Icons.email),
+                  ),
                 ),
+                const SizedBox(height: 16),
                 DropdownButtonFormField<String>(
                   value: role,
                   items: const [
@@ -172,14 +204,23 @@ class _AdminDashboardState extends State<AdminDashboard>
                     DropdownMenuItem(value: 'admin', child: Text('Admin')),
                   ],
                   onChanged: (val) => setStateDialog(() => role = val!),
-                  decoration: const InputDecoration(labelText: 'Rol'),
+                  decoration: InputDecoration(
+                    labelText: 'Rol',
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    prefixIcon: const Icon(Icons.admin_panel_settings),
+                  ),
                 ),
               ],
             ),
             actions: [
               TextButton(
                 onPressed: () => Navigator.pop(context),
-                child: const Text('Cancelar'),
+                child: const Text(
+                  'Cancelar',
+                  style: TextStyle(color: Colors.grey),
+                ),
               ),
               ElevatedButton(
                 onPressed: () async {
@@ -207,6 +248,13 @@ class _AdminDashboardState extends State<AdminDashboard>
                     // Error
                   }
                 },
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFFB71C1C),
+                  foregroundColor: Colors.white,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                ),
                 child: const Text('Guardar'),
               ),
             ],
@@ -215,6 +263,8 @@ class _AdminDashboardState extends State<AdminDashboard>
       ),
     );
   }
+
+  // ... (getters _filteredUsers and _filteredProjects remain the same)
 
   List<dynamic> get _filteredUsers {
     if (_selectedRoleFilter == 'Todos') {
@@ -245,13 +295,22 @@ class _AdminDashboardState extends State<AdminDashboard>
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      backgroundColor: Colors.grey[100],
       appBar: AppBar(
-        title: Text('Panel Admin: ${_user?['nombre_completo']}'),
+        backgroundColor: const Color(0xFFB71C1C),
+        foregroundColor: Colors.white,
+        title: Text(
+          'Panel Admin: ${_user?['nombre_completo'] ?? ''}',
+          style: const TextStyle(fontWeight: FontWeight.bold),
+        ),
         bottom: TabBar(
           controller: _tabController,
+          indicatorColor: Colors.white,
+          labelColor: Colors.white,
+          unselectedLabelColor: Colors.white70,
           tabs: const [
-            Tab(text: 'Usuarios'),
-            Tab(text: 'Proyectos'),
+            Tab(text: 'Usuarios', icon: Icon(Icons.people)),
+            Tab(text: 'Proyectos', icon: Icon(Icons.folder)),
           ],
         ),
       ),
@@ -269,14 +328,19 @@ class _AdminDashboardState extends State<AdminDashboard>
           // Usuarios Tab
           Column(
             children: [
-              Padding(
-                padding: const EdgeInsets.all(8.0),
+              Container(
+                padding: const EdgeInsets.all(16.0),
+                color: Colors.white,
                 child: DropdownButtonFormField<String>(
                   value: _selectedRoleFilter,
-                  decoration: const InputDecoration(
+                  decoration: InputDecoration(
                     labelText: 'Filtrar por Rol',
-                    border: OutlineInputBorder(),
-                    prefixIcon: Icon(Icons.filter_list),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    prefixIcon: const Icon(Icons.filter_list),
+                    filled: true,
+                    fillColor: Colors.grey[50],
                   ),
                   items: const [
                     DropdownMenuItem(value: 'Todos', child: Text('Todos')),
@@ -295,37 +359,93 @@ class _AdminDashboardState extends State<AdminDashboard>
                 child: _isLoadingUsers
                     ? const Center(child: CircularProgressIndicator())
                     : ListView.builder(
+                        padding: const EdgeInsets.all(16),
                         itemCount: _filteredUsers.length,
                         itemBuilder: (context, index) {
                           final user = _filteredUsers[index];
-                          return ListTile(
-                            leading: CircleAvatar(
-                              child: Text(
-                                user['nombre_completo'][0]
-                                    .toString()
-                                    .toUpperCase(),
-                              ),
+                          Color roleColor = Colors.grey;
+                          if (user['rol'] == 'admin') {
+                            roleColor = Colors.red;
+                          } else if (user['rol'] == 'docente') {
+                            roleColor = Colors.blue;
+                          } else if (user['rol'] == 'alumno') {
+                            roleColor = Colors.green;
+                          }
+
+                          return Card(
+                            elevation: 2,
+                            margin: const EdgeInsets.only(bottom: 12),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12),
                             ),
-                            title: Text(user['nombre_completo']),
-                            subtitle: Text('${user['email']} - ${user['rol']}'),
-                            trailing: Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                IconButton(
-                                  icon: const Icon(
-                                    Icons.edit,
-                                    color: Colors.blue,
-                                  ),
-                                  onPressed: () => _showEditUserDialog(user),
+                            child: ListTile(
+                              contentPadding: const EdgeInsets.symmetric(
+                                horizontal: 16,
+                                vertical: 8,
+                              ),
+                              leading: CircleAvatar(
+                                backgroundColor: const Color(0xFFB71C1C),
+                                child: Text(
+                                  user['nombre_completo'][0]
+                                      .toString()
+                                      .toUpperCase(),
+                                  style: const TextStyle(color: Colors.white),
                                 ),
-                                IconButton(
-                                  icon: const Icon(
-                                    Icons.delete,
-                                    color: Colors.red,
-                                  ),
-                                  onPressed: () => _deleteUser(user['id']),
+                              ),
+                              title: Text(
+                                user['nombre_completo'],
+                                style: const TextStyle(
+                                  fontWeight: FontWeight.bold,
                                 ),
-                              ],
+                              ),
+                              subtitle: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  const SizedBox(height: 4),
+                                  Text(user['email']),
+                                  const SizedBox(height: 8),
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 8,
+                                      vertical: 2,
+                                    ),
+                                    decoration: BoxDecoration(
+                                      color: roleColor.withOpacity(0.1),
+                                      borderRadius: BorderRadius.circular(12),
+                                      border: Border.all(color: roleColor),
+                                    ),
+                                    child: Text(
+                                      user['rol'].toString().toUpperCase(),
+                                      style: TextStyle(
+                                        color: roleColor,
+                                        fontSize: 10,
+                                        fontWeight: FontWeight.bold,
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              trailing: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  IconButton(
+                                    icon: const Icon(
+                                      Icons.edit,
+                                      color: Colors.blue,
+                                    ),
+                                    onPressed: () => _showEditUserDialog(user),
+                                    tooltip: 'Editar',
+                                  ),
+                                  IconButton(
+                                    icon: const Icon(
+                                      Icons.delete,
+                                      color: Colors.red,
+                                    ),
+                                    onPressed: () => _deleteUser(user['id']),
+                                    tooltip: 'Eliminar',
+                                  ),
+                                ],
+                              ),
                             ),
                           );
                         },
@@ -336,14 +456,19 @@ class _AdminDashboardState extends State<AdminDashboard>
           // Proyectos Tab
           Column(
             children: [
-              Padding(
-                padding: const EdgeInsets.all(8.0),
+              Container(
+                padding: const EdgeInsets.all(16.0),
+                color: Colors.white,
                 child: TextField(
-                  decoration: const InputDecoration(
+                  decoration: InputDecoration(
                     labelText: 'Buscar Proyecto',
                     hintText: 'Ingrese nombre del proyecto',
-                    border: OutlineInputBorder(),
-                    prefixIcon: Icon(Icons.search),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    prefixIcon: const Icon(Icons.search),
+                    filled: true,
+                    fillColor: Colors.grey[50],
                   ),
                   onChanged: (val) {
                     setState(() {
@@ -356,17 +481,90 @@ class _AdminDashboardState extends State<AdminDashboard>
                 child: _isLoadingProjects
                     ? const Center(child: CircularProgressIndicator())
                     : ListView.builder(
+                        padding: const EdgeInsets.all(16),
                         itemCount: _filteredProjects.length,
                         itemBuilder: (context, index) {
                           final project = _filteredProjects[index];
-                          return ListTile(
-                            title: Text(project['titulo']),
-                            subtitle: Text(
-                              'Docente: ${project['docente_nombre']} - ${project['visibilidad']}',
+                          final isPublic = project['visibilidad'] == 'publico';
+                          return Card(
+                            elevation: 2,
+                            margin: const EdgeInsets.only(bottom: 12),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12),
                             ),
-                            trailing: IconButton(
-                              icon: const Icon(Icons.delete, color: Colors.red),
-                              onPressed: () => _deleteProject(project['id']),
+                            child: ListTile(
+                              contentPadding: const EdgeInsets.all(16),
+                              leading: Container(
+                                padding: const EdgeInsets.all(8),
+                                decoration: BoxDecoration(
+                                  color: Colors.grey[100],
+                                  borderRadius: BorderRadius.circular(8),
+                                ),
+                                child: const Icon(
+                                  Icons.folder,
+                                  color: Color(0xFFB71C1C),
+                                ),
+                              ),
+                              title: Text(
+                                project['titulo'],
+                                style: const TextStyle(
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 16,
+                                ),
+                              ),
+                              subtitle: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  const SizedBox(height: 8),
+                                  Row(
+                                    children: [
+                                      const Icon(
+                                        Icons.person,
+                                        size: 14,
+                                        color: Colors.grey,
+                                      ),
+                                      const SizedBox(width: 4),
+                                      Text(
+                                        project['docente_nombre'],
+                                        style: const TextStyle(
+                                          color: Colors.grey,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                  const SizedBox(height: 4),
+                                  Row(
+                                    children: [
+                                      Icon(
+                                        isPublic ? Icons.public : Icons.lock,
+                                        size: 14,
+                                        color: isPublic
+                                            ? Colors.green
+                                            : Colors.orange,
+                                      ),
+                                      const SizedBox(width: 4),
+                                      Text(
+                                        isPublic ? 'Público' : 'Privado',
+                                        style: TextStyle(
+                                          color: isPublic
+                                              ? Colors.green
+                                              : Colors.orange,
+                                          fontWeight: FontWeight.bold,
+                                          fontSize: 12,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ],
+                              ),
+                              trailing: IconButton(
+                                icon: const Icon(
+                                  Icons.delete_outline,
+                                  color: Colors.red,
+                                ),
+                                onPressed: () => _deleteProject(project['id']),
+                                tooltip: 'Eliminar Proyecto',
+                              ),
                             ),
                           );
                         },

@@ -4,6 +4,7 @@ import 'package:http/http.dart' as http;
 import 'package:file_picker/file_picker.dart';
 import '../../api_service.dart';
 import '../../widgets/app_drawer.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 class TeacherDashboard extends StatefulWidget {
   const TeacherDashboard({super.key});
@@ -485,13 +486,51 @@ class _TeacherDashboardState extends State<TeacherDashboard>
     );
   }
 
+  Future<void> _launchURL(String urlString) async {
+    String finalUrl = urlString;
+    // Si la URL es relativa (no empieza con http), agregar el dominio base
+    if (!urlString.startsWith('http') && !urlString.startsWith('https')) {
+      if (urlString.startsWith('/')) {
+        finalUrl = '${ApiService.baseUrl}$urlString';
+      } else {
+        finalUrl = '${ApiService.baseUrl}/$urlString';
+      }
+    }
+
+    try {
+      final Uri url = Uri.parse(finalUrl);
+      if (!await launchUrl(url, mode: LaunchMode.externalApplication)) {
+        if (mounted) {
+          ScaffoldMessenger.of(
+            context,
+          ).showSnackBar(SnackBar(content: Text('No se pudo abrir $finalUrl')));
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Error al abrir URL: $e')));
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      backgroundColor: Colors.grey[100],
       appBar: AppBar(
-        title: Text('Panel Docente: ${_user?['nombre_completo'] ?? ''}'),
+        backgroundColor: const Color(0xFFB71C1C),
+        foregroundColor: Colors.white,
+        title: Text(
+          'Panel Docente: ${_user?['nombre_completo'] ?? ''}',
+          style: const TextStyle(fontWeight: FontWeight.bold),
+        ),
         bottom: TabBar(
           controller: _tabController,
+          indicatorColor: Colors.white,
+          labelColor: Colors.white,
+          unselectedLabelColor: Colors.white70,
           tabs: const [
             Tab(text: 'Mis Proyectos'),
             Tab(text: 'Mis Alumnos'),
@@ -515,9 +554,21 @@ class _TeacherDashboardState extends State<TeacherDashboard>
             children: [
               Padding(
                 padding: const EdgeInsets.all(16.0),
-                child: ElevatedButton(
+                child: ElevatedButton.icon(
+                  icon: const Icon(Icons.add),
+                  label: const Text('Subir Nuevo Proyecto'),
                   onPressed: _showCreateProjectDialog,
-                  child: const Text('Subir Nuevo Proyecto'),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFFB71C1C),
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 24,
+                      vertical: 12,
+                    ),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                  ),
                 ),
               ),
               Expanded(
@@ -528,62 +579,92 @@ class _TeacherDashboardState extends State<TeacherDashboard>
                         itemBuilder: (context, index) {
                           final project = _projects[index];
                           return Card(
+                            elevation: 4,
                             margin: const EdgeInsets.symmetric(
                               horizontal: 16,
                               vertical: 8,
                             ),
-                            child: ListTile(
-                              title: Text(project['titulo']),
-                              subtitle: Column(
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            child: Padding(
+                              padding: const EdgeInsets.all(16.0),
+                              child: Column(
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
-                                  Text(project['descripcion'] ?? ''),
-                                  if (project['archivo_pdf_url'] != null)
-                                    Padding(
-                                      padding: const EdgeInsets.only(top: 8.0),
-                                      child: Row(
-                                        children: [
-                                          const Icon(
-                                            Icons.picture_as_pdf,
-                                            size: 16,
-                                            color: Colors.red,
+                                  Row(
+                                    children: [
+                                      Expanded(
+                                        child: Text(
+                                          project['titulo'],
+                                          style: const TextStyle(
+                                            fontWeight: FontWeight.bold,
+                                            fontSize: 18,
+                                            color: Color(0xFFB71C1C),
                                           ),
-                                          const SizedBox(width: 4),
-                                          Expanded(
-                                            child: Text(
-                                              project['archivo_pdf_url']
-                                                  .toString()
-                                                  .split('/')
-                                                  .last,
-                                              style: const TextStyle(
-                                                color: Colors.blue,
-                                                decoration:
-                                                    TextDecoration.underline,
-                                              ),
-                                              overflow: TextOverflow.ellipsis,
+                                        ),
+                                      ),
+                                      IconButton(
+                                        icon: Icon(
+                                          project['visibilidad'] == 'publico'
+                                              ? Icons.public
+                                              : Icons.lock,
+                                          color:
+                                              project['visibilidad'] ==
+                                                  'publico'
+                                              ? Colors.green
+                                              : Colors.grey,
+                                        ),
+                                        onPressed: () => _toggleVisibility(
+                                          project['id'],
+                                          project['visibilidad'] ?? 'publico',
+                                        ),
+                                        tooltip:
+                                            project['visibilidad'] == 'publico'
+                                            ? 'Público'
+                                            : 'Privado',
+                                      ),
+                                    ],
+                                  ),
+                                  const SizedBox(height: 8),
+                                  Text(
+                                    project['descripcion'] ?? '',
+                                    style: TextStyle(color: Colors.grey[800]),
+                                  ),
+                                  if (project['archivo_pdf_url'] != null) ...[
+                                    const SizedBox(height: 16),
+                                    Row(
+                                      children: [
+                                        OutlinedButton.icon(
+                                          icon: const Icon(Icons.visibility),
+                                          label: const Text('Previsualizar'),
+                                          onPressed: () => _launchURL(
+                                            project['archivo_pdf_url'],
+                                          ),
+                                          style: OutlinedButton.styleFrom(
+                                            foregroundColor: const Color(
+                                              0xFFB71C1C,
                                             ),
                                           ),
-                                        ],
-                                      ),
+                                        ),
+                                        const SizedBox(width: 12),
+                                        ElevatedButton.icon(
+                                          icon: const Icon(Icons.download),
+                                          label: const Text('Descargar'),
+                                          onPressed: () => _launchURL(
+                                            project['archivo_pdf_url'],
+                                          ),
+                                          style: ElevatedButton.styleFrom(
+                                            backgroundColor: const Color(
+                                              0xFFB71C1C,
+                                            ),
+                                            foregroundColor: Colors.white,
+                                          ),
+                                        ),
+                                      ],
                                     ),
+                                  ],
                                 ],
-                              ),
-                              trailing: IconButton(
-                                icon: Icon(
-                                  project['visibilidad'] == 'publico'
-                                      ? Icons.public
-                                      : Icons.lock,
-                                  color: project['visibilidad'] == 'publico'
-                                      ? Colors.green
-                                      : Colors.grey,
-                                ),
-                                onPressed: () => _toggleVisibility(
-                                  project['id'],
-                                  project['visibilidad'] ?? 'publico',
-                                ),
-                                tooltip: project['visibilidad'] == 'publico'
-                                    ? 'Público (Toca para ocultar)'
-                                    : 'Privado (Toca para publicar)',
                               ),
                             ),
                           );
@@ -602,174 +683,123 @@ class _TeacherDashboardState extends State<TeacherDashboard>
                     final tasks = student['tasks'] as List<dynamic>? ?? [];
 
                     return Card(
-                      margin: const EdgeInsets.all(8),
-                      child: Padding(
-                        padding: const EdgeInsets.all(8.0),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            ListTile(
-                              contentPadding: EdgeInsets.zero,
-                              title: Text(
-                                student['alumno_nombre'],
-                                style: const TextStyle(
-                                  fontWeight: FontWeight.bold,
-                                ),
-                              ),
-                              subtitle: Text(student['alumno_email'] ?? ''),
-                              trailing: IconButton(
-                                icon: const Icon(Icons.add_task),
-                                onPressed: () =>
-                                    _createTask(student['asesoria_id']),
-                                tooltip: 'Asignar Tarea',
+                      elevation: 2,
+                      margin: const EdgeInsets.symmetric(
+                        horizontal: 16,
+                        vertical: 8,
+                      ),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        side: BorderSide(color: Colors.grey.shade200),
+                      ),
+                      child: ExpansionTile(
+                        leading: CircleAvatar(
+                          backgroundColor: const Color(0xFFB71C1C),
+                          child: Text(
+                            student['alumno_nombre'][0].toUpperCase(),
+                            style: const TextStyle(color: Colors.white),
+                          ),
+                        ),
+                        title: Text(
+                          student['alumno_nombre'],
+                          style: const TextStyle(
+                            fontWeight: FontWeight.bold,
+                            fontSize: 16,
+                          ),
+                        ),
+                        subtitle: Text(student['alumno_email'] ?? ''),
+                        childrenPadding: const EdgeInsets.all(16),
+                        children: [
+                          SizedBox(
+                            width: double.infinity,
+                            child: ElevatedButton.icon(
+                              icon: const Icon(Icons.add_task),
+                              label: const Text('Asignar Nueva Tarea'),
+                              onPressed: () =>
+                                  _createTask(student['asesoria_id']),
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: Colors.grey[200],
+                                foregroundColor: Colors.black87,
+                                elevation: 0,
                               ),
                             ),
-                            const Divider(),
-                            const Text(
-                              'Entregables asignados:',
-                              style: TextStyle(
-                                fontWeight: FontWeight.w600,
-                                color: Colors.grey,
-                              ),
-                            ),
-                            if (tasks.isEmpty)
-                              const Padding(
-                                padding: EdgeInsets.symmetric(vertical: 8.0),
+                          ),
+                          const SizedBox(height: 16),
+                          if (tasks.isEmpty)
+                            const Center(
+                              child: Padding(
+                                padding: EdgeInsets.all(8.0),
                                 child: Text(
                                   'No hay tareas asignadas',
-                                  style: TextStyle(fontStyle: FontStyle.italic),
+                                  style: TextStyle(
+                                    fontStyle: FontStyle.italic,
+                                    color: Colors.grey,
+                                  ),
                                 ),
-                              )
-                            else
-                              ...tasks.map((task) {
-                                return ListTile(
+                              ),
+                            )
+                          else
+                            ...tasks.map((task) {
+                              return Container(
+                                margin: const EdgeInsets.only(bottom: 8),
+                                decoration: BoxDecoration(
+                                  color: Colors.white,
+                                  borderRadius: BorderRadius.circular(8),
+                                  border: Border.all(color: Colors.grey[300]!),
+                                ),
+                                child: ListTile(
                                   dense: true,
-                                  contentPadding: const EdgeInsets.only(
-                                    left: 16,
-                                  ),
                                   leading: const Icon(
-                                    Icons.assignment,
-                                    size: 20,
+                                    Icons.assignment_outlined,
+                                    color: Color(0xFFB71C1C),
                                   ),
-                                  title: Text(task['titulo']),
-                                  subtitle: Column(
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.start,
-                                    children: [
-                                      Text(
-                                        'Fecha límite: ${task['fecha_limite'] ?? 'Sin fecha'}',
-                                      ),
-                                      if (task['archivo_url'] != null)
-                                        Padding(
-                                          padding: const EdgeInsets.only(
-                                            top: 4.0,
-                                          ),
-                                          child: Row(
-                                            children: [
-                                              const Icon(
-                                                Icons.check_circle,
-                                                size: 16,
-                                                color: Colors.green,
-                                              ),
-                                              const SizedBox(width: 4),
-                                              const Text(
-                                                'Entregado:',
-                                                style: TextStyle(
-                                                  fontWeight: FontWeight.bold,
-                                                  color: Colors.green,
-                                                ),
-                                              ),
-                                              const SizedBox(width: 4),
-                                              Expanded(
-                                                child: Text(
-                                                  task['archivo_url']
-                                                      .toString()
-                                                      .split('/')
-                                                      .last,
-                                                  style: const TextStyle(
-                                                    color: Colors.blue,
-                                                    decoration: TextDecoration
-                                                        .underline,
-                                                  ),
-                                                  overflow:
-                                                      TextOverflow.ellipsis,
-                                                ),
-                                              ),
-                                            ],
-                                          ),
-                                        )
-                                      else
-                                        const Padding(
-                                          padding: EdgeInsets.only(top: 4.0),
-                                          child: Row(
-                                            children: [
-                                              Icon(
-                                                Icons.pending,
-                                                size: 16,
-                                                color: Colors.orange,
-                                              ),
-                                              SizedBox(width: 4),
-                                              Text(
-                                                'Pendiente de entrega',
-                                                style: TextStyle(
-                                                  color: Colors.orange,
-                                                  fontStyle: FontStyle.italic,
-                                                ),
-                                              ),
-                                            ],
-                                          ),
-                                        ),
-                                    ],
+                                  title: Text(
+                                    task['titulo'],
+                                    style: const TextStyle(
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
+                                  subtitle: Text(
+                                    'Límite: ${task['fecha_limite'] ?? 'Sin fecha'}',
                                   ),
                                   trailing: task['archivo_url'] != null
                                       ? Row(
                                           mainAxisSize: MainAxisSize.min,
                                           children: [
-                                            if (task['nota'] != null ||
-                                                (task['feedback_docente'] !=
-                                                        null &&
-                                                    task['feedback_docente']
-                                                        .toString()
-                                                        .isNotEmpty))
-                                              const Padding(
-                                                padding: EdgeInsets.only(
-                                                  right: 8.0,
-                                                ),
-                                                child: Row(
-                                                  children: [
-                                                    Icon(
-                                                      Icons.check_circle,
-                                                      size: 16,
-                                                      color: Colors.green,
-                                                    ),
-                                                    SizedBox(width: 4),
-                                                    Text(
-                                                      'Entregado',
-                                                      style: TextStyle(
-                                                        color: Colors.green,
-                                                        fontWeight:
-                                                            FontWeight.bold,
-                                                        fontSize: 12,
-                                                      ),
-                                                    ),
-                                                  ],
-                                                ),
-                                              ),
+                                            const Icon(
+                                              Icons.check_circle,
+                                              color: Colors.green,
+                                              size: 20,
+                                            ),
+                                            const SizedBox(width: 8),
                                             IconButton(
                                               icon: const Icon(
-                                                Icons.rate_review,
+                                                Icons.rate_review_outlined,
+                                                color: Color(0xFFB71C1C),
                                               ),
-                                              tooltip: 'Calificar / Comentar',
                                               onPressed: () =>
                                                   _showGradeDialog(task),
+                                              tooltip: 'Calificar',
                                             ),
                                           ],
                                         )
+                                      : const Chip(
+                                          label: Text(
+                                            'Pendiente',
+                                            style: TextStyle(
+                                              fontSize: 10,
+                                              color: Colors.orange,
+                                            ),
+                                          ),
+                                          backgroundColor: Color(0xFFFFF3E0),
+                                        ),
+                                  onTap: task['archivo_url'] != null
+                                      ? () => _launchURL(task['archivo_url'])
                                       : null,
-                                );
-                              }),
-                          ],
-                        ),
+                                ),
+                              );
+                            }),
+                        ],
                       ),
                     );
                   },
@@ -778,23 +808,54 @@ class _TeacherDashboardState extends State<TeacherDashboard>
           _isLoadingRequests
               ? const Center(child: CircularProgressIndicator())
               : _requests.isEmpty
-              ? const Center(child: Text('No tienes solicitudes pendientes'))
+              ? Center(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      const Icon(Icons.inbox, size: 64, color: Colors.grey),
+                      const SizedBox(height: 16),
+                      const Text(
+                        'No tienes solicitudes pendientes',
+                        style: TextStyle(fontSize: 16, color: Colors.grey),
+                      ),
+                    ],
+                  ),
+                )
               : ListView.builder(
                   itemCount: _requests.length,
                   itemBuilder: (context, index) {
                     final request = _requests[index];
                     return Card(
-                      margin: const EdgeInsets.all(8),
+                      elevation: 4,
+                      margin: const EdgeInsets.symmetric(
+                        horizontal: 16,
+                        vertical: 8,
+                      ),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
                       child: ListTile(
-                        title: Text(request['alumno_nombre']),
+                        contentPadding: const EdgeInsets.all(16),
+                        leading: CircleAvatar(
+                          backgroundColor: Colors.orange,
+                          child: const Icon(
+                            Icons.person_add,
+                            color: Colors.white,
+                          ),
+                        ),
+                        title: Text(
+                          request['alumno_nombre'],
+                          style: const TextStyle(fontWeight: FontWeight.bold),
+                        ),
                         subtitle: Text('Email: ${request['alumno_email']}'),
                         trailing: Row(
                           mainAxisSize: MainAxisSize.min,
                           children: [
                             IconButton(
                               icon: const Icon(
-                                Icons.check,
+                                Icons.check_circle,
                                 color: Colors.green,
+                                size: 32,
                               ),
                               onPressed: () => _respondRequest(
                                 request['asesoria_id'],
@@ -803,7 +864,11 @@ class _TeacherDashboardState extends State<TeacherDashboard>
                               tooltip: 'Aceptar',
                             ),
                             IconButton(
-                              icon: const Icon(Icons.close, color: Colors.red),
+                              icon: const Icon(
+                                Icons.cancel,
+                                color: Colors.red,
+                                size: 32,
+                              ),
                               onPressed: () => _respondRequest(
                                 request['asesoria_id'],
                                 'reject',
