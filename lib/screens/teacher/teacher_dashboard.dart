@@ -722,11 +722,48 @@ class _TeacherDashboardState extends State<TeacherDashboard>
                                     ],
                                   ),
                                   trailing: task['archivo_url'] != null
-                                      ? IconButton(
-                                          icon: const Icon(Icons.rate_review),
-                                          tooltip: 'Calificar / Comentar',
-                                          onPressed: () =>
-                                              _showGradeDialog(task),
+                                      ? Row(
+                                          mainAxisSize: MainAxisSize.min,
+                                          children: [
+                                            if (task['nota'] != null ||
+                                                (task['feedback_docente'] !=
+                                                        null &&
+                                                    task['feedback_docente']
+                                                        .toString()
+                                                        .isNotEmpty))
+                                              const Padding(
+                                                padding: EdgeInsets.only(
+                                                  right: 8.0,
+                                                ),
+                                                child: Row(
+                                                  children: [
+                                                    Icon(
+                                                      Icons.check_circle,
+                                                      size: 16,
+                                                      color: Colors.green,
+                                                    ),
+                                                    SizedBox(width: 4),
+                                                    Text(
+                                                      'Entregado',
+                                                      style: TextStyle(
+                                                        color: Colors.green,
+                                                        fontWeight:
+                                                            FontWeight.bold,
+                                                        fontSize: 12,
+                                                      ),
+                                                    ),
+                                                  ],
+                                                ),
+                                              ),
+                                            IconButton(
+                                              icon: const Icon(
+                                                Icons.rate_review,
+                                              ),
+                                              tooltip: 'Calificar / Comentar',
+                                              onPressed: () =>
+                                                  _showGradeDialog(task),
+                                            ),
+                                          ],
                                         )
                                       : null,
                                 );

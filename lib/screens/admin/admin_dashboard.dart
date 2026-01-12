@@ -20,6 +20,9 @@ class _AdminDashboardState extends State<AdminDashboard>
   bool _isLoadingUsers = false;
   bool _isLoadingProjects = false;
 
+  String _selectedRoleFilter = 'Todos';
+  String _projectSearchQuery = '';
+
   @override
   void initState() {
     super.initState();
@@ -213,6 +216,32 @@ class _AdminDashboardState extends State<AdminDashboard>
     );
   }
 
+  List<dynamic> get _filteredUsers {
+    if (_selectedRoleFilter == 'Todos') {
+      return _users;
+    }
+    return _users
+        .where(
+          (user) =>
+              user['rol'].toString().toLowerCase() ==
+              _selectedRoleFilter.toLowerCase(),
+        )
+        .toList();
+  }
+
+  List<dynamic> get _filteredProjects {
+    if (_projectSearchQuery.isEmpty) {
+      return _projects;
+    }
+    return _projects
+        .where(
+          (project) => project['titulo'].toString().toLowerCase().contains(
+            _projectSearchQuery.toLowerCase(),
+          ),
+        )
+        .toList();
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -237,56 +266,114 @@ class _AdminDashboardState extends State<AdminDashboard>
       body: TabBarView(
         controller: _tabController,
         children: [
-          // Usuarios
-          _isLoadingUsers
-              ? const Center(child: CircularProgressIndicator())
-              : ListView.builder(
-                  itemCount: _users.length,
-                  itemBuilder: (context, index) {
-                    final user = _users[index];
-                    return ListTile(
-                      leading: CircleAvatar(
-                        child: Text(
-                          user['nombre_completo'][0].toString().toUpperCase(),
-                        ),
-                      ),
-                      title: Text(user['nombre_completo']),
-                      subtitle: Text('${user['email']} - ${user['rol']}'),
-                      trailing: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          IconButton(
-                            icon: const Icon(Icons.edit, color: Colors.blue),
-                            onPressed: () => _showEditUserDialog(user),
-                          ),
-                          IconButton(
-                            icon: const Icon(Icons.delete, color: Colors.red),
-                            onPressed: () => _deleteUser(user['id']),
-                          ),
-                        ],
-                      ),
-                    );
+          // Usuarios Tab
+          Column(
+            children: [
+              Padding(
+                padding: const EdgeInsets.all(8.0),
+                child: DropdownButtonFormField<String>(
+                  value: _selectedRoleFilter,
+                  decoration: const InputDecoration(
+                    labelText: 'Filtrar por Rol',
+                    border: OutlineInputBorder(),
+                    prefixIcon: Icon(Icons.filter_list),
+                  ),
+                  items: const [
+                    DropdownMenuItem(value: 'Todos', child: Text('Todos')),
+                    DropdownMenuItem(value: 'alumno', child: Text('Alumnos')),
+                    DropdownMenuItem(value: 'docente', child: Text('Docentes')),
+                    DropdownMenuItem(value: 'admin', child: Text('Admins')),
+                  ],
+                  onChanged: (val) {
+                    setState(() {
+                      _selectedRoleFilter = val!;
+                    });
                   },
                 ),
-          // Proyectos
-          _isLoadingProjects
-              ? const Center(child: CircularProgressIndicator())
-              : ListView.builder(
-                  itemCount: _projects.length,
-                  itemBuilder: (context, index) {
-                    final project = _projects[index];
-                    return ListTile(
-                      title: Text(project['titulo']),
-                      subtitle: Text(
-                        'Docente: ${project['docente_nombre']} - ${project['visibilidad']}',
+              ),
+              Expanded(
+                child: _isLoadingUsers
+                    ? const Center(child: CircularProgressIndicator())
+                    : ListView.builder(
+                        itemCount: _filteredUsers.length,
+                        itemBuilder: (context, index) {
+                          final user = _filteredUsers[index];
+                          return ListTile(
+                            leading: CircleAvatar(
+                              child: Text(
+                                user['nombre_completo'][0]
+                                    .toString()
+                                    .toUpperCase(),
+                              ),
+                            ),
+                            title: Text(user['nombre_completo']),
+                            subtitle: Text('${user['email']} - ${user['rol']}'),
+                            trailing: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                IconButton(
+                                  icon: const Icon(
+                                    Icons.edit,
+                                    color: Colors.blue,
+                                  ),
+                                  onPressed: () => _showEditUserDialog(user),
+                                ),
+                                IconButton(
+                                  icon: const Icon(
+                                    Icons.delete,
+                                    color: Colors.red,
+                                  ),
+                                  onPressed: () => _deleteUser(user['id']),
+                                ),
+                              ],
+                            ),
+                          );
+                        },
                       ),
-                      trailing: IconButton(
-                        icon: const Icon(Icons.delete, color: Colors.red),
-                        onPressed: () => _deleteProject(project['id']),
-                      ),
-                    );
+              ),
+            ],
+          ),
+          // Proyectos Tab
+          Column(
+            children: [
+              Padding(
+                padding: const EdgeInsets.all(8.0),
+                child: TextField(
+                  decoration: const InputDecoration(
+                    labelText: 'Buscar Proyecto',
+                    hintText: 'Ingrese nombre del proyecto',
+                    border: OutlineInputBorder(),
+                    prefixIcon: Icon(Icons.search),
+                  ),
+                  onChanged: (val) {
+                    setState(() {
+                      _projectSearchQuery = val;
+                    });
                   },
                 ),
+              ),
+              Expanded(
+                child: _isLoadingProjects
+                    ? const Center(child: CircularProgressIndicator())
+                    : ListView.builder(
+                        itemCount: _filteredProjects.length,
+                        itemBuilder: (context, index) {
+                          final project = _filteredProjects[index];
+                          return ListTile(
+                            title: Text(project['titulo']),
+                            subtitle: Text(
+                              'Docente: ${project['docente_nombre']} - ${project['visibilidad']}',
+                            ),
+                            trailing: IconButton(
+                              icon: const Icon(Icons.delete, color: Colors.red),
+                              onPressed: () => _deleteProject(project['id']),
+                            ),
+                          );
+                        },
+                      ),
+              ),
+            ],
+          ),
         ],
       ),
     );
