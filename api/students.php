@@ -16,16 +16,20 @@ if ($action === 'select_advisor') {
       exit;
    }
 
-   // 1. Verificar si el alumno ya tiene asesor
-   $stmt = $pdo->prepare("SELECT id FROM asesorias WHERE alumno_id = ? AND estado = 'activo'");
+   // 1. Verificar si el alumno ya tiene asesor o solicitud pendiente
+   $stmt = $pdo->prepare("SELECT id, estado FROM asesorias WHERE alumno_id = ? AND estado IN ('activo', 'pendiente')");
    $stmt->execute([$alumno_id]);
-   if ($stmt->fetch()) {
+   if ($row = $stmt->fetch()) {
+      $msg = $row['estado'] === 'activo' ? 'Ya tienes un asesor asignado' : 'Ya tienes una solicitud pendiente';
       http_response_code(409);
-      echo json_encode(['success' => false, 'message' => 'Ya tienes un asesor asignado']);
+      echo json_encode(['success' => false, 'message' => $msg]);
       exit;
    }
 
-   // 2. Verificar si el docente está libre (Atomicidad importante en prod, aquí básico)
+   // 2. Verificar si el docente está libre (Opcional: tal vez permitir solicitudes aunque esté ocupado, pero por ahora mantenemos la restricción)
+   // Nota: Si solo contamos 'activos', el docente podría recibir mil solicitudes.
+   // Dejemos que reciba solicitudes, la restricción de "ocupado" se aplicará al ACEPTAR.
+   // O podemos mantenerla aquí. Mantenemos aquí para no ilusionar al alumno.
    $stmt = $pdo->prepare("SELECT COUNT(*) FROM asesorias WHERE docente_id = ? AND estado = 'activo'");
    $stmt->execute([$docente_id]);
    if ($stmt->fetchColumn() > 0) {
@@ -34,26 +38,22 @@ if ($action === 'select_advisor') {
       exit;
    }
 
-   // 3. Crear asesoría
+   // 3. Crear solicitud de asesoría (estado pendiente)
    try {
       $pdo->beginTransaction();
 
-      // Marcar proyecto como asignado SI se eligió uno
-      if ($proyecto_id) {
-         $stmt = $pdo->prepare("UPDATE proyectos SET estado = 'asignado' WHERE id = ?");
-         $stmt->execute([$proyecto_id]);
-      }
+      // NO marcamos proyecto como asignado todavía. Se marcará cuando el docente acepte.
 
-      // Crear registro asesoría
-      $stmt = $pdo->prepare("INSERT INTO asesorias (alumno_id, docente_id, proyecto_id) VALUES (?, ?, ?)");
+      // Crear registro asesoría con estado pendiente
+      $stmt = $pdo->prepare("INSERT INTO asesorias (alumno_id, docente_id, proyecto_id, estado) VALUES (?, ?, ?, 'pendiente')");
       $stmt->execute([$alumno_id, $docente_id, $proyecto_id]);
 
       $pdo->commit();
-      echo json_encode(['success' => true, 'message' => 'Asesor seleccionado con éxito']);
+      echo json_encode(['success' => true, 'message' => 'Solicitud enviada al docente. Espera su aprobación.']);
    } catch (Exception $e) {
       $pdo->rollBack();
       http_response_code(500);
-      echo json_encode(['success' => false, 'message' => 'Error al seleccionar asesor: ' . $e->getMessage()]);
+      echo json_encode(['success' => false, 'message' => 'Error al enviar solicitud: ' . $e->getMessage()]);
    }
 } elseif ($action === 'my_advisor') {
    // Ver quién es mi asesor y el proyecto
@@ -66,11 +66,11 @@ if ($action === 'select_advisor') {
    }
 
    try {
-      $sql = "SELECT a.id as asesoria_id, u.nombre_completo as docente_nombre, u.email as docente_email, p.titulo as proyecto_titulo
+      $sql = "SELECT a.id as asesoria_id, a.estado, u.nombre_completo as docente_nombre, u.email as docente_email, p.titulo as proyecto_titulo
                 FROM asesorias a
                 JOIN usuarios u ON a.docente_id = u.id
                 LEFT JOIN proyectos p ON a.proyecto_id = p.id
-                WHERE a.alumno_id = ? AND a.estado = 'activo'";
+                WHERE a.alumno_id = ? AND a.estado IN ('activo', 'pendiente')";
 
       $stmt = $pdo->prepare($sql);
       $stmt->execute([$alumno_id]);

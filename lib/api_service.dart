@@ -71,5 +71,30 @@ class ApiService {
     return jsonDecode(response.body);
   }
 
+  static Future<Map<String, dynamic>> respondRequest(
+    int asesoriaId,
+    String responseType, // 'accept' or 'reject'
+  ) async {
+    final response = await http.post(
+      Uri.parse('$baseUrl/teachers.php?action=respond_request'),
+      body: jsonEncode({'asesoria_id': asesoriaId, 'response': responseType}),
+      headers: {'Content-Type': 'application/json'},
+    );
+    return jsonDecode(response.body);
+  }
+
+  static Future<List<dynamic>> getRequests(int docenteId) async {
+    final response = await http.get(
+      Uri.parse(
+        '$baseUrl/teachers.php?action=list_requests&docente_id=$docenteId',
+      ),
+    );
+    if (response.statusCode == 200) {
+      final data = jsonDecode(response.body);
+      return data['requests'];
+    }
+    return [];
+  }
+
   // Más métodos según necesidad...
 }

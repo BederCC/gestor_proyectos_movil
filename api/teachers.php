@@ -197,6 +197,91 @@ if ($action === 'list_teachers') {
       http_response_code(500);
       echo json_encode(['success' => false, 'message' => 'Error al calificar: ' . $e->getMessage()]);
    }
+} elseif ($action === 'list_requests') {
+   // Listar solicitudes pendientes
+   $docente_id = $_GET['docente_id'] ?? null;
+   if (!$docente_id) {
+      http_response_code(400);
+      echo json_encode(['success' => false, 'message' => 'ID docente requerido']);
+      exit;
+   }
+
+   try {
+      $sql = "SELECT a.id as asesoria_id, u.nombre_completo as alumno_nombre, u.email as alumno_email, p.titulo as proyecto_titulo
+              FROM asesorias a
+              JOIN usuarios u ON a.alumno_id = u.id
+              LEFT JOIN proyectos p ON a.proyecto_id = p.id
+              WHERE a.docente_id = ? AND a.estado = 'pendiente'";
+      $stmt = $pdo->prepare($sql);
+      $stmt->execute([$docente_id]);
+      $requests = $stmt->fetchAll();
+      echo json_encode(['success' => true, 'requests' => $requests]);
+   } catch (Exception $e) {
+      http_response_code(500);
+      echo json_encode(['success' => false, 'message' => 'Error al listar solicitudes']);
+   }
+} elseif ($action === 'respond_request') {
+   // Aceptar o rechazar solicitud
+   $asesoria_id = $data['asesoria_id'] ?? null;
+   $response = $data['response'] ?? ''; // 'accept' or 'reject'
+
+   if (!$asesoria_id || !in_array($response, ['accept', 'reject'])) {
+      http_response_code(400);
+      echo json_encode(['success' => false, 'message' => 'Datos inválidos']);
+      exit;
+   }
+
+   try {
+      $pdo->beginTransaction();
+
+      if ($response === 'accept') {
+         // 1. Verificar si el docente ya tiene un activo (si aplica restricción de 1 alumno)
+         // Omitimos por ahora si queremos permitir múltiples, pero el requerimiento decía "una vez elegido ya no puede elegir otro".
+         // Asumiremos que el docente puede tener múltiples, pero el ALUMNO solo uno.
+         // Si la regla es 1 docente - 1 alumno, deberíamos verificar aquí.
+
+         // Actualizar estado a activo
+         $stmt = $pdo->prepare("UPDATE asesorias SET estado = 'activo' WHERE id = ?");
+         $stmt->execute([$asesoria_id]);
+
+         // Marcar proyecto como asignado si existe
+         $stmt = $pdo->prepare("SELECT proyecto_id FROM asesorias WHERE id = ?");
+         $stmt->execute([$asesoria_id]);
+         $proyecto_id = $stmt->fetchColumn();
+
+         if ($proyecto_id) {
+            $stmt = $pdo->prepare("UPDATE proyectos SET estado = 'asignado' WHERE id = ?");
+            $stmt->execute([$proyecto_id]);
+         }
+
+         $msg = 'Solicitud aceptada';
+
+         // RECHAZAR AUTOMÁTICAMENTE LAS DEMÁS SOLICITUDES PENDIENTES
+         // Obtener el docente_id de la asesoría actual
+         $stmt = $pdo->prepare("SELECT docente_id FROM asesorias WHERE id = ?");
+         $stmt->execute([$asesoria_id]);
+         $docente_id = $stmt->fetchColumn();
+
+         if ($docente_id) {
+            $stmt = $pdo->prepare("UPDATE asesorias SET estado = 'rechazado' WHERE docente_id = ? AND estado = 'pendiente' AND id != ?");
+            $stmt->execute([$docente_id, $asesoria_id]);
+         }
+
+         $msg .= ' (Las demás solicitudes fueron rechazadas)';
+      } else {
+         // Rechazar: estado 'rechazado'
+         $stmt = $pdo->prepare("UPDATE asesorias SET estado = 'rechazado' WHERE id = ?");
+         $stmt->execute([$asesoria_id]);
+         $msg = 'Solicitud rechazada';
+      }
+
+      $pdo->commit();
+      echo json_encode(['success' => true, 'message' => $msg]);
+   } catch (Exception $e) {
+      $pdo->rollBack();
+      http_response_code(500);
+      echo json_encode(['success' => false, 'message' => 'Error al responder solicitud']);
+   }
 } else {
    http_response_code(400);
    echo json_encode(['success' => false, 'message' => 'Acción no válida']);

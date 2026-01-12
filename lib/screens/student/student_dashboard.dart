@@ -74,10 +74,16 @@ class _StudentDashboardState extends State<StudentDashboard>
         setState(() {
           _advisor = data['advisor'];
         });
-        _loadTasks(_advisor!['asesoria_id']);
+        // Solo cargar tareas si está activo
+        if (_advisor!['estado'] == 'activo') {
+          _loadTasks(_advisor!['asesoria_id']);
+        }
       } else {
         // Si no tiene, cargar lista de docentes
         _loadTeachers();
+        setState(() {
+          _advisor = null;
+        });
       }
     } catch (e) {
       // Error
@@ -285,7 +291,37 @@ class _StudentDashboardState extends State<StudentDashboard>
           // Tab 2: Mi Asesoría
           _isLoading
               ? const Center(child: CircularProgressIndicator())
-              : (_advisor == null ? _buildTeacherList() : _buildDashboard()),
+              : (_advisor == null
+                    ? _buildTeacherList()
+                    : _advisor!['estado'] == 'pendiente'
+                    ? Center(
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            const Icon(
+                              Icons.hourglass_empty,
+                              size: 64,
+                              color: Colors.orange,
+                            ),
+                            const SizedBox(height: 16),
+                            Text(
+                              'Solicitud enviada a ${_advisor!['docente_nombre']}',
+                              style: const TextStyle(
+                                fontSize: 18,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                            const SizedBox(height: 8),
+                            const Text('Esperando aprobación del docente...'),
+                            const SizedBox(height: 16),
+                            ElevatedButton(
+                              onPressed: _checkAdvisor,
+                              child: const Text('Actualizar Estado'),
+                            ),
+                          ],
+                        ),
+                      )
+                    : _buildDashboard()),
         ],
       ),
     );

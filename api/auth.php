@@ -1,8 +1,11 @@
 <?php
 require_once 'config.php';
 
-// Obtener datos del body (JSON)
+// Obtener datos del body (JSON) o POST
 $data = json_decode(file_get_contents("php://input"), true);
+if (!$data) {
+   $data = $_POST;
+}
 
 // Determinar la acción basada en un parámetro GET 'action'
 $action = isset($_GET['action']) ? $_GET['action'] : '';
@@ -52,7 +55,7 @@ if ($action === 'register') {
       exit;
    }
 
-   $stmt = $pdo->prepare("SELECT id, nombre_completo, email, password, rol FROM usuarios WHERE email = ?");
+   $stmt = $pdo->prepare("SELECT id, nombre_completo, email, password, rol, foto_perfil FROM usuarios WHERE email = ?");
    $stmt->execute([$email]);
    $user = $stmt->fetch();
 
@@ -85,19 +88,68 @@ if ($action === 'register') {
       exit;
    }
 
-   try {
-      if ($password) {
-         $hashed_password = password_hash($password, PASSWORD_DEFAULT);
-         $stmt = $pdo->prepare("UPDATE usuarios SET nombre_completo = ?, email = ?, password = ? WHERE id = ?");
-         $stmt->execute([$nombre, $email, $hashed_password, $id]);
-      } else {
-         $stmt = $pdo->prepare("UPDATE usuarios SET nombre_completo = ?, email = ? WHERE id = ?");
-         $stmt->execute([$nombre, $email, $id]);
+   // Manejar subida de imagen
+   $foto_url = null;
+   if (isset($_FILES['foto_perfil']) && $_FILES['foto_perfil']['error'] === UPLOAD_ERR_OK) {
+      $uploadDir = 'uploads/perfil/';
+      if (!is_dir($uploadDir)) mkdir($uploadDir, 0777, true);
+
+      $fileName = uniqid() . '_' . basename($_FILES['foto_perfil']['name']);
+      $uploadFile = $uploadDir . $fileName;
+
+      if (move_uploaded_file($_FILES['foto_perfil']['tmp_name'], $uploadFile)) {
+         // Eliminar imagen anterior si existe
+         $stmt = $pdo->prepare("SELECT foto_perfil FROM usuarios WHERE id = ?");
+         $stmt->execute([$id]);
+         $oldUrl = $stmt->fetchColumn();
+
+         if ($oldUrl) {
+            $oldPath = $oldUrl;
+            // Si es URL completa (legacy), extraer path
+            if (strpos($oldUrl, 'http') === 0) {
+               $parsedUrl = parse_url($oldUrl);
+               $oldPath = ltrim($parsedUrl['path'], '/');
+            }
+
+            if (file_exists($oldPath)) {
+               unlink($oldPath);
+            }
+         }
+
+         // Guardar solo la ruta relativa
+         $foto_url = $uploadFile;
       }
-      echo json_encode(['success' => true, 'message' => 'Perfil actualizado']);
+   }
+
+   try {
+      $sql = "UPDATE usuarios SET nombre_completo = ?, email = ?";
+      $params = [$nombre, $email];
+
+      if ($password) {
+         $sql .= ", password = ?";
+         $params[] = password_hash($password, PASSWORD_DEFAULT);
+      }
+
+      if ($foto_url) {
+         $sql .= ", foto_perfil = ?";
+         $params[] = $foto_url;
+      }
+
+      $sql .= " WHERE id = ?";
+      $params[] = $id;
+
+      $stmt = $pdo->prepare($sql);
+      $stmt->execute($params);
+
+      // Devolver usuario actualizado
+      $stmt = $pdo->prepare("SELECT id, nombre_completo, email, rol, foto_perfil FROM usuarios WHERE id = ?");
+      $stmt->execute([$id]);
+      $updatedUser = $stmt->fetch();
+
+      echo json_encode(['success' => true, 'message' => 'Perfil actualizado', 'user' => $updatedUser]);
    } catch (Exception $e) {
       http_response_code(500);
-      echo json_encode(['success' => false, 'message' => 'Error al actualizar perfil']);
+      echo json_encode(['success' => false, 'message' => 'Error al actualizar perfil: ' . $e->getMessage()]);
    }
 } else {
    http_response_code(400);

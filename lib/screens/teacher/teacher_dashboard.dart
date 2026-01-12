@@ -26,6 +26,9 @@ class _TeacherDashboardState extends State<TeacherDashboard>
 
   bool _isInit = true;
 
+  List<dynamic> _requests = [];
+  bool _isLoadingRequests = false;
+
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
@@ -35,8 +38,40 @@ class _TeacherDashboardState extends State<TeacherDashboard>
       if (_user != null) {
         _loadStudents();
         _loadProjects();
+        _loadRequests();
       }
       _isInit = false;
+    }
+  }
+
+  Future<void> _loadRequests() async {
+    setState(() => _isLoadingRequests = true);
+    try {
+      final requests = await ApiService.getRequests(_user!['id']);
+      setState(() {
+        _requests = requests;
+      });
+    } catch (e) {
+      // Error
+    } finally {
+      setState(() => _isLoadingRequests = false);
+    }
+  }
+
+  Future<void> _respondRequest(int asesoriaId, String response) async {
+    try {
+      final result = await ApiService.respondRequest(asesoriaId, response);
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(result['message'])));
+        if (result['success']) {
+          _loadRequests();
+          if (response == 'accept') _loadStudents();
+        }
+      }
+    } catch (e) {
+      // Error
     }
   }
 
@@ -64,7 +99,7 @@ class _TeacherDashboardState extends State<TeacherDashboard>
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 2, vsync: this);
+    _tabController = TabController(length: 3, vsync: this);
   }
 
   Future<void> _loadStudents() async {
@@ -365,6 +400,91 @@ class _TeacherDashboardState extends State<TeacherDashboard>
     );
   }
 
+  Future<void> _gradeDeliverable(
+    int entregableId,
+    String? nota,
+    String feedback,
+  ) async {
+    try {
+      final response = await http.post(
+        Uri.parse(
+          '${ApiService.baseUrl}/teachers.php?action=grade_deliverable',
+        ),
+        body: jsonEncode({
+          'entregable_id': entregableId,
+          'nota': nota,
+          'feedback': feedback,
+        }),
+      );
+      final data = jsonDecode(response.body);
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(data['message'])));
+        if (data['success']) {
+          _loadStudents(); // Recargar para ver cambios
+        }
+      }
+    } catch (e) {
+      // Error
+    }
+  }
+
+  void _showGradeDialog(Map<String, dynamic> task) {
+    final feedbackController = TextEditingController(
+      text: task['feedback_docente'] ?? '',
+    );
+    final notaController = TextEditingController(
+      text: task['nota']?.toString() ?? '',
+    );
+
+    showDialog(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          title: const Text('Calificar Entregable'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TextField(
+                controller: notaController,
+                decoration: const InputDecoration(
+                  labelText: 'Nota (0-20)',
+                  hintText: 'Ej. 18',
+                ),
+                keyboardType: TextInputType.number,
+              ),
+              TextField(
+                controller: feedbackController,
+                decoration: const InputDecoration(
+                  labelText: 'Comentarios / Feedback',
+                ),
+                maxLines: 3,
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('Cancelar'),
+            ),
+            ElevatedButton(
+              onPressed: () {
+                Navigator.pop(context);
+                _gradeDeliverable(
+                  task['entregable_id'],
+                  notaController.text.isEmpty ? null : notaController.text,
+                  feedbackController.text,
+                );
+              },
+              child: const Text('Guardar'),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -375,6 +495,7 @@ class _TeacherDashboardState extends State<TeacherDashboard>
           tabs: const [
             Tab(text: 'Mis Proyectos'),
             Tab(text: 'Mis Alumnos'),
+            Tab(text: 'Solicitudes'),
           ],
         ),
       ),
@@ -616,93 +737,50 @@ class _TeacherDashboardState extends State<TeacherDashboard>
                     );
                   },
                 ),
+          // Tab Solicitudes
+          _isLoadingRequests
+              ? const Center(child: CircularProgressIndicator())
+              : _requests.isEmpty
+              ? const Center(child: Text('No tienes solicitudes pendientes'))
+              : ListView.builder(
+                  itemCount: _requests.length,
+                  itemBuilder: (context, index) {
+                    final request = _requests[index];
+                    return Card(
+                      margin: const EdgeInsets.all(8),
+                      child: ListTile(
+                        title: Text(request['alumno_nombre']),
+                        subtitle: Text('Email: ${request['alumno_email']}'),
+                        trailing: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            IconButton(
+                              icon: const Icon(
+                                Icons.check,
+                                color: Colors.green,
+                              ),
+                              onPressed: () => _respondRequest(
+                                request['asesoria_id'],
+                                'accept',
+                              ),
+                              tooltip: 'Aceptar',
+                            ),
+                            IconButton(
+                              icon: const Icon(Icons.close, color: Colors.red),
+                              onPressed: () => _respondRequest(
+                                request['asesoria_id'],
+                                'reject',
+                              ),
+                              tooltip: 'Rechazar',
+                            ),
+                          ],
+                        ),
+                      ),
+                    );
+                  },
+                ),
         ],
       ),
-    );
-  }
-
-  Future<void> _gradeDeliverable(
-    int entregableId,
-    String? nota,
-    String feedback,
-  ) async {
-    try {
-      final response = await http.post(
-        Uri.parse(
-          '${ApiService.baseUrl}/teachers.php?action=grade_deliverable',
-        ),
-        body: jsonEncode({
-          'entregable_id': entregableId,
-          'nota': nota,
-          'feedback': feedback,
-        }),
-      );
-      final data = jsonDecode(response.body);
-      if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text(data['message'])));
-        if (data['success']) {
-          _loadStudents(); // Recargar para ver cambios
-        }
-      }
-    } catch (e) {
-      // Error
-    }
-  }
-
-  void _showGradeDialog(Map<String, dynamic> task) {
-    final feedbackController = TextEditingController(
-      text: task['feedback_docente'] ?? '',
-    );
-    final notaController = TextEditingController(
-      text: task['nota']?.toString() ?? '',
-    );
-
-    showDialog(
-      context: context,
-      builder: (context) {
-        return AlertDialog(
-          title: const Text('Calificar Entregable'),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              TextField(
-                controller: notaController,
-                decoration: const InputDecoration(
-                  labelText: 'Nota (0-20)',
-                  hintText: 'Ej. 18',
-                ),
-                keyboardType: TextInputType.number,
-              ),
-              TextField(
-                controller: feedbackController,
-                decoration: const InputDecoration(
-                  labelText: 'Comentarios / Feedback',
-                ),
-                maxLines: 3,
-              ),
-            ],
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: const Text('Cancelar'),
-            ),
-            ElevatedButton(
-              onPressed: () {
-                Navigator.pop(context);
-                _gradeDeliverable(
-                  task['entregable_id'],
-                  notaController.text.isEmpty ? null : notaController.text,
-                  feedbackController.text,
-                );
-              },
-              child: const Text('Guardar'),
-            ),
-          ],
-        );
-      },
     );
   }
 }
