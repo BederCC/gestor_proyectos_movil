@@ -1,6 +1,6 @@
-# Gestor de Proyectos Móvil - Universidad Bolivar
+# Gestor de Proyectos Móvil
 
-Aplicación móvil desarrollada en Flutter para la gestión de proyectos de tesis y asesorías en la Universidad Bolivar. Esta herramienta facilita la interacción entre alumnos, docentes y administradores, permitiendo un seguimiento eficiente del proceso de titulación.
+Aplicación móvil desarrollada en Flutter para la gestión de proyectos de tesis y asesorías. Esta herramienta facilita la interacción entre alumnos, docentes y administradores, permitiendo un seguimiento eficiente del proceso de titulación.
 
 ## 📱 Funcionalidades Principales
 
